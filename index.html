@@ -1,192 +1,70 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-
 <meta charset="UTF-8">
-<meta name="viewport"
-content="width=device-width,initial-scale=1.0">
-
-<title>GR TRACK MANAGER</title>
-
+<title>早出表</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
 
-<div class="app">
+<div class="container">
 
-<header>
+  <div class="header">
+    <h1>早出表</h1>
 
-<h1>
-GR TRACK MANAGER
-</h1>
+    <div class="shift-switch">
+      <button type="button" class="shiftBtn active" data-shift="1">1直</button>
+      <button type="button" class="shiftBtn" data-shift="2">2直</button>
+    </div>
 
-<p>
-Toyota Gazoo Racing Style
-</p>
+    <div class="main-buttons">
+      <button id="createButton" type="button" class="primary-btn">
+        早出表を作成
+      </button>
 
-</header>
+      <button id="educationButton" type="button" class="sub-btn">
+        教育
+      </button>
+    </div>
+  </div>
 
-<section class="card">
+  <!-- 教育エリア（重複を削除して1つに整理） -->
+  <div id="educationArea" class="education-box">
+    <h3>教育設定</h3>
+    <div id="educationList"></div>
+    <button id="addEducationBtn" type="button">＋教育を追加</button>
+  </div>
 
-<h2>
-勤務選択
-</h2>
+  <details class="accordion">
+    <summary>メンバー・スキル管理</summary>
+    <div class="accordion-body">
 
-<div class="shift-buttons">
+      <div class="add-row">
+        <input id="memberInput" type="text" placeholder="名前を入力">
+        <button id="addMemberBtn" type="button">追加</button>
+      </div>
 
-<button id="shift1" class="active">
-1直
-</button>
+      <div id="memberList" class="member-list"></div>
 
-<button id="shift2">
-2直
-</button>
+    </div>
+  </details>
 
-</div>
+  <details class="accordion">
+    <summary>休み入力</summary>
+    <div class="accordion-body">
+      <div id="holidayArea"></div>
+    </div>
+  </details>
 
-</section>
-
-<section class="card">
-
-<h2>
-👥 メンバー管理
-</h2>
-
-<p>
-登録メンバーや追加・削除を行います
-</p>
-
-<button id="memberButton">
-
-メンバー管理を開く
-
-</button>
-
-<div id="memberArea" style="display:none; margin-top:15px;">
-
-<input
-type="text"
-id="memberName"
-placeholder="名前を入力">
-
-<button id="addMember">
-追加
-</button>
-
-<div id="memberList"></div>
+  <div class="board">
+    <div id="scheduleArea"></div>
+  </div>
 
 </div>
 
-</section>
-
-<section class="card">
-
-<h2>
-⚙️ スキル管理
-</h2>
-
-<p>
-1直・2直ごとのスキルを設定します
-</p>
-
-<button id="skillButton">
-スキル管理を開く
-</button>
-
-<div id="skillArea" style="display:none; margin-top:15px;">
-
-<div id="skillList"></div>
-
-</div>
-
-</section>
-
-<section class="card">
-
-<h2>
-休み入力
-</h2>
-<p>
-メンバーごとの休みを設定します
-</p>
-
-<button id="holidayButton">
-休み入力を開く
-</button>
-<div id="holidayArea" style="display:none; margin-top:15px;">
-
-</div>
-
-</section>
-
-<section class="card">
-
-<h2>
-🎓 教育
-</h2>
-
-<p>
-今日の教育を設定します
-</p>
-
-<button id="educationButton">
-
-🎓 教育
-
-</button>
-
-<div
-id="educationArea"
-style="display:none; margin-top:15px;">
-
-<div id="educationList"></div>
-
-</div>
-
-<div
-id="educationArea"
-style="display:none; margin-top:15px;">
-
-<button id="addEducation">
-
-＋ 教育を追加
-
-</button>
-
-<div id="educationList"></div>
-<br>
-
-<button id="saveEducation">
-
-教育設定を保存
-
-</button>
-</div>
-
-</section>
-
-<section class="card">
-
-<button
-id="createButton">
-
-早出表を作成
-
-
-
-</section>
-
-<section
-id="whiteboard">
-
-</section>
-
-</div>
-
-<script src="scheduler.js"></script>
 <script src="script.js"></script>
+<script src="scheduler.js"></script>
 
 </body>
 </html>
