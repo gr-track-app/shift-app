@@ -1,224 +1,371 @@
-const DAYS = ["月", "火", "水", "木", "金"];
-const POSITIONS_BY_SHIFT = {
-  "1": ["A", "B", "C", "D"],
-  "2": ["A", "B", "C"]
+const STORAGE_KEY = "gr_track_manager_data_v1";
+
+let currentShift = "1";
+let appData = {
+  shifts: {
+    "1": createEmptyShiftData(),
+    "2": createEmptyShiftData()
+  }
 };
 
-// ランダムシャッフル（公平抽選用）
-function shuffleArray(array) {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+function createEmptyShiftData() {
+  return {
+    members: [],
+    skills: {},
+    holidays: {},
+    count: {},
+    posCount: {},
+    schedule: null,
+    education: {}
+  };
 }
 
-// 1週間分のスケジュールを1パターン生成
-function generateCandidateSchedule(shiftData, positions) {
-  const schedule = {};
-  const tempCount = { ...(shiftData.count || {}) };
-  const tempPosCount = {};
+function loadAppData() {
+  try {
+    const possibleKeys = [STORAGE_KEY, "shiftData", "grTrackManager", "hayadeData"];
+    let raw = null;
+    for (const k of possibleKeys) {
+      const item = localStorage.getItem(k);
+      if (item) {
+        raw = JSON.parse(item);
+        break;
+      }
+    }
+    if (raw) {
+      const sourceShifts = raw.shifts ? raw.shifts : raw;
+      ["1", "2"].forEach(s => {
+        if (sourceShifts[s]) {
+          appData.shifts[s] = { ...createEmptyShiftData(), ...sourceShifts[s] };
+        }
+      });
+    }
+  } catch (e) {
+    console.error("データ読み込みエラー:", e);
+  }
+  normalizeCurrentShiftData();
+}
 
-  shiftData.members.forEach(m => {
-    if (tempCount[m] === undefined) tempCount[m] = 0;
-    tempPosCount[m] = { ...(shiftData.posCount?.[m] || {}) };
+function normalizeCurrentShiftData() {
+  const sData = appData.shifts[currentShift];
+  const positions = POSITIONS_BY_SHIFT[currentShift];
+
+  if (!Array.isArray(sData.members)) sData.members = [];
+  if (!sData.skills) sData.skills = {};
+  if (!sData.holidays) sData.holidays = {};
+  if (!sData.count) sData.count = {};
+  if (!sData.posCount) sData.posCount = {};
+  if (!sData.education) sData.education = {};
+
+  sData.members.forEach(m => {
+    if (!sData.skills[m]) sData.skills[m] = {};
+    if (!sData.holidays[m]) sData.holidays[m] = {};
+    if (sData.count[m] === undefined) sData.count[m] = 0;
+    if (!sData.posCount[m]) sData.posCount[m] = {};
     positions.forEach(p => {
-      if (tempPosCount[m][p] === undefined) tempPosCount[m][p] = 0;
+      if (sData.posCount[m][p] === undefined) sData.posCount[m][p] = 0;
+    });
+  });
+}
+
+function saveAppData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadAppData();
+  setupEventListeners();
+  refreshAllViews();
+});
+
+function setupEventListeners() {
+  document.querySelectorAll(".shiftBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".shiftBtn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentShift = btn.dataset.shift;
+      normalizeCurrentShiftData();
+      closeAllPanels();
+      refreshAllViews();
     });
   });
 
-  let prevDayAssigned = new Set();
+  document.querySelectorAll(".nav-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.target;
+      const targetPanel = document.getElementById(targetId);
+      const isAlreadyOpen = !targetPanel.classList.contains("hidden");
 
-  for (const day of DAYS) {
-    schedule[day] = {};
-    const assignedToday = new Set();
+      closeAllPanels();
 
-    // 候補者が少ないポジションから優先して埋める（詰まり防止）
-    const sortedPositions = [...positions].sort((a, b) => {
-      const countA = shiftData.members.filter(m =>
-        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[a]
-      ).length;
-      const countB = shiftData.members.filter(m =>
-        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[b]
-      ).length;
-      return countA - countB;
+      if (!isAlreadyOpen) {
+        btn.classList.add("active");
+        targetPanel.classList.remove("hidden");
+        if (targetId === "panel-education") {
+          renderEducationPanel();
+        }
+      }
     });
+  });
 
-    for (const pos of sortedPositions) {
-      // その日に年休でなく、まだ今日配置されておらず、このポジションのスキルを持つ人
-      const candidates = shiftData.members.filter(m => {
-        const isHoliday = Boolean(shiftData.holidays?.[m]?.[day]);
-        const hasSkill = Boolean(shiftData.skills?.[m]?.[pos]);
-        return !isHoliday && !assignedToday.has(m) && hasSkill;
-      });
+  document.querySelectorAll(".close-panel-btn").forEach(btn => {
+    btn.addEventListener("click", closeAllPanels);
+  });
 
-      if (candidates.length === 0) {
-        schedule[day][pos] = "";
-        continue;
-      }
+  document.getElementById("addMemberBtn").addEventListener("click", addMember);
+  document.getElementById("memberInput").addEventListener("keypress", e => {
+    if (e.key === "Enter") addMember();
+  });
 
-      // 同点時の偏りをなくすため先にシャッフル
-      const shuffled = shuffleArray(candidates);
+  document.getElementById("createButton").addEventListener("click", handleCreateSchedule);
 
-      // スコアが低い（優先度が高い）順にソート
-      shuffled.sort((a, b) => {
-        const scoreA =
-          (tempCount[a] || 0) * 100 +
-          (tempPosCount[a]?.[pos] || 0) * 35 +
-          (prevDayAssigned.has(a) ? 25 : 0);
+  document.getElementById("scheduleArea").addEventListener("change", e => {
+    if (e.target.classList.contains("board-select")) {
+      const day = e.target.dataset.day;
+      const pos = e.target.dataset.pos;
+      const newPerson = e.target.value;
+      const sData = appData.shifts[currentShift];
 
-        const scoreB =
-          (tempCount[b] || 0) * 100 +
-          (tempPosCount[b]?.[pos] || 0) * 35 +
-          (prevDayAssigned.has(b) ? 25 : 0);
-
-        return scoreA - scoreB;
-      });
-
-      const chosen = shuffled[0];
-      schedule[day][pos] = chosen;
-      assignedToday.add(chosen);
-      tempCount[chosen] = (tempCount[chosen] || 0) + 1;
-      tempPosCount[chosen][pos] = (tempPosCount[chosen][pos] || 0) + 1;
-    }
-
-    prevDayAssigned = assignedToday;
-  }
-
-  return schedule;
-}
-
-// スケジュール全体の公平性を採点（低いほど良い）
-function evaluateSchedule(schedule, shiftData, positions) {
-  let penalty = 0;
-  const weekCount = {};
-  shiftData.members.forEach(m => (weekCount[m] = 0));
-
-  for (let i = 0; i < DAYS.length; i++) {
-    const day = DAYS[i];
-    const prevDay = i > 0 ? DAYS[i - 1] : null;
-
-    for (const pos of positions) {
-      const person = schedule[day][pos];
-      if (!person) {
-        penalty += 5000; // 空き枠ペナルティ
-        continue;
-      }
-      weekCount[person] = (weekCount[person] || 0) + 1;
-
-      if (prevDay) {
-        // 前日と同じポジションの連続
-        if (schedule[prevDay][pos] === person) {
-          penalty += 40;
-        }
-        // 前日も早出だった場合（連続勤務）
-        const wasYesterday = positions.some(p => schedule[prevDay][p] === person);
-        if (wasYesterday) {
-          penalty += 15;
+      if (sData.schedule && sData.schedule[day]) {
+        sData.schedule[day][pos] = newPerson;
+        saveAppData();
+        renderBoard();
+        if (!document.getElementById("panel-education").classList.contains("hidden")) {
+          renderEducationPanel();
         }
       }
     }
-  }
-
-  // 1週間内の担当回数のバラつきペナルティ
-  const counts = Object.values(weekCount);
-  if (counts.length > 0) {
-    const maxC = Math.max(...counts);
-    const minC = Math.min(...counts);
-    penalty += (maxC - minC) * 80;
-  }
-
-  return penalty;
+  });
 }
 
-// 50パターン試行して最も公平な早出表を作成
-function generateBestSchedule(shiftData, shiftKey) {
-  const positions = POSITIONS_BY_SHIFT[shiftKey];
-  let bestSchedule = null;
-  let bestScore = Infinity;
-
-  for (let i = 0; i < 50; i++) {
-    const candidate = generateCandidateSchedule(shiftData, positions);
-    const score = evaluateSchedule(candidate, shiftData, positions);
-    if (score < bestScore) {
-      bestScore = score;
-      bestSchedule = candidate;
-    }
-  }
-
-  return bestSchedule;
+function closeAllPanels() {
+  document.querySelectorAll(".panel").forEach(p => p.classList.add("hidden"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
 }
 
-// 未習得スキルがあるメンバーか判定（🟠表示用）
-function hasUnlearnedSkill(member, shiftData, shiftKey) {
-  if (!member) return false;
-  const positions = POSITIONS_BY_SHIFT[shiftKey];
-  return positions.some(pos => !shiftData.skills?.[member]?.[pos]);
+function refreshAllViews() {
+  document.getElementById("boardTitle").textContent = `${currentShift}直 早出表`;
+  renderMemberList();
+  renderSkillArea();
+  renderHolidayArea();
+  renderBoard();
 }
+function addMember() {
+  const input = document.getElementById("memberInput");
+  const name = input.value.trim();
+  if (!name) return;
 
-// ホワイトボード描画（左：A・B / 右：C・D）
-function renderScheduleBoard(schedule, shiftData, shiftKey, educationMap = {}) {
-  const scheduleArea = document.getElementById("scheduleArea");
-  if (!schedule || Object.keys(schedule).length === 0) {
-    scheduleArea.innerHTML = `<div class="empty-board">「📝 早出表作成」を押してください</div>`;
+  const sData = appData.shifts[currentShift];
+  if (sData.members.includes(name)) {
+    alert("同じ名前のメンバーが既に登録されています。");
     return;
   }
 
-  const positions = POSITIONS_BY_SHIFT[shiftKey];
-  const leftPositions = positions.filter(p => p === "A" || p === "B");
-  const rightPositions = positions.filter(p => p === "C" || p === "D");
-
-  let html = "";
-
-  for (const day of DAYS) {
-    html += `<div class="day-block">`;
-    html += `<div class="day-label">${day}曜日</div>`;
-    html += `<div class="pos-grid">`;
-
-    // 左列（A・B）
-    html += `<div class="pos-col">`;
-    for (const pos of leftPositions) {
-      html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, shiftKey, educationMap);
-    }
-    html += `</div>`;
-
-    // 右列（C・D）
-    html += `<div class="pos-col">`;
-    for (const pos of rightPositions) {
-      html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, shiftKey, educationMap);
-    }
-    html += `</div>`;
-
-    html += `</div></div>`;
-  }
-
-  scheduleArea.innerHTML = html;
+  sData.members.push(name);
+  normalizeCurrentShiftData();
+  saveAppData();
+  input.value = "";
+  refreshAllViews();
 }
 
-// 各枠（ポジション）のセルHTML生成（プルダウン変更＆教育担当表示）
-function buildPositionCellHTML(day, pos, assignedPerson, shiftData, shiftKey, educationMap) {
-  const showOrange = hasUnlearnedSkill(assignedPerson, shiftData, shiftKey);
-  const trainer = assignedPerson ? educationMap[assignedPerson] : "";
+function deleteMember(name) {
+  if (!confirm(`「${name}」を削除しますか？`)) return;
+  const sData = appData.shifts[currentShift];
+  sData.members = sData.members.filter(m => m !== name);
+  delete sData.skills[name];
+  delete sData.holidays[name];
+  delete sData.count[name];
+  delete sData.posCount[name];
+  delete sData.education[name];
+  saveAppData();
+  refreshAllViews();
+}
 
-  let optionsHtml = `<option value="">-- 未定 --</option>`;
-  shiftData.members.forEach(m => {
-    const selected = m === assignedPerson ? "selected" : "";
-    optionsHtml += `<option value="${m}" ${selected}>${m}</option>`;
-  });
+function renderMemberList() {
+  const container = document.getElementById("memberList");
+  const sData = appData.shifts[currentShift];
 
-  return `
-    <div class="pos-cell">
-      <span class="pos-tag">${pos}</span>
-      <div class="cell-content">
-        <div class="person-select-row">
-          ${showOrange ? `<span>🟠</span>` : ""}
-          <select class="board-select" data-day="${day}" data-pos="${pos}">
-            ${optionsHtml}
-          </select>
-        </div>
-        ${trainer ? `<div class="trainer-badge">👨‍🏫 教育: ${trainer}</div>` : ""}
-      </div>
+  if (sData.members.length === 0) {
+    container.innerHTML = `<p class="panel-note">メンバーが登録されていません</p>`;
+    return;
+  }
+
+  container.innerHTML = sData.members.map(m => `
+    <div class="list-item">
+      <span class="item-name">${m}</span>
+      <button type="button" class="del-btn" onclick="deleteMember('${m}')">削除</button>
     </div>
-  `;
+  `).join("");
+}
+
+function renderSkillArea() {
+  const container = document.getElementById("skillArea");
+  const sData = appData.shifts[currentShift];
+  const positions = POSITIONS_BY_SHIFT[currentShift];
+
+  if (sData.members.length === 0) {
+    container.innerHTML = `<p class="panel-note">先にメンバーを登録してください</p>`;
+    return;
+  }
+
+  container.innerHTML = sData.members.map(m => {
+    const checks = positions.map(pos => {
+      const checked = sData.skills[m]?.[pos] ? "checked" : "";
+      return `
+        <label class="check-label">
+          <input type="checkbox" ${checked} onchange="toggleSkill('${m}', '${pos}', this.checked)">
+          ${pos}
+        </label>
+      `;
+    }).join("");
+
+    return `
+      <div class="list-item">
+        <span class="item-name">${m}</span>
+        <div class="check-group">${checks}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function toggleSkill(member, pos, isChecked) {
+  const sData = appData.shifts[currentShift];
+  if (!sData.skills[member]) sData.skills[member] = {};
+  sData.skills[member][pos] = isChecked;
+  saveAppData();
+  renderBoard();
+}
+
+function renderHolidayArea() {
+  const container = document.getElementById("holidayArea");
+  const sData = appData.shifts[currentShift];
+
+  if (sData.members.length === 0) {
+    container.innerHTML = `<p class="panel-note">先にメンバーを登録してください</p>`;
+    return;
+  }
+
+  container.innerHTML = sData.members.map(m => {
+    const checks = DAYS.map(day => {
+      const checked = sData.holidays[m]?.[day] ? "checked" : "";
+      return `
+        <label class="check-label">
+          <input type="checkbox" ${checked} onchange="toggleHoliday('${m}', '${day}', this.checked)">
+          ${day}
+        </label>
+      `;
+    }).join("");
+
+    return `
+      <div class="list-item">
+        <span class="item-name">${m}</span>
+        <div class="check-group">${checks}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function toggleHoliday(member, day, isChecked) {
+  const sData = appData.shifts[currentShift];
+  if (!sData.holidays[member]) sData.holidays[member] = {};
+  sData.holidays[member][day] = isChecked;
+  saveAppData();
+}
+
+function handleCreateSchedule() {
+  const sData = appData.shifts[currentShift];
+  if (sData.members.length === 0) {
+    alert("メンバーを登録してから早出表を作成してください。");
+    return;
+  }
+
+  const newSchedule = generateBestSchedule(sData, currentShift);
+  sData.schedule = newSchedule;
+
+  const positions = POSITIONS_BY_SHIFT[currentShift];
+  for (const day of DAYS) {
+    for (const pos of positions) {
+      const person = newSchedule[day][pos];
+      if (person) {
+        sData.count[person] = (sData.count[person] || 0) + 1;
+        sData.posCount[person][pos] = (sData.posCount[person][pos] || 0) + 1;
+      }
+    }
+  }
+
+  sData.holidays = {};
+  sData.members.forEach(m => {
+    sData.holidays[m] = {};
+  });
+  sData.education = {};
+
+  saveAppData();
+  closeAllPanels();
+  renderHolidayArea();
+  renderBoard();
+}
+
+function renderEducationPanel() {
+  const container = document.getElementById("educationList");
+  const sData = appData.shifts[currentShift];
+
+  if (!sData.schedule) {
+    container.innerHTML = `<p class="panel-note">先に「📝 早出表作成」を押してください</p>`;
+    return;
+  }
+
+  const positions = POSITIONS_BY_SHIFT[currentShift];
+  const traineesSet = new Set();
+
+  for (const day of DAYS) {
+    for (const pos of positions) {
+      const person = sData.schedule[day]?.[pos];
+      if (person && hasUnlearnedSkill(person, sData, currentShift)) {
+        traineesSet.add(person);
+      }
+    }
+  }
+
+  const trainees = Array.from(traineesSet);
+
+  if (trainees.length === 0) {
+    container.innerHTML = `<p class="panel-note">今回の早出表に教育対象者（🟠）はいません</p>`;
+    return;
+  }
+
+  container.innerHTML = trainees.map(trainee => {
+    const currentTrainer = sData.education[trainee] || "";
+
+    let options = `<option value="">-- 教育なし --</option>`;
+    sData.members.forEach(m => {
+      if (m !== trainee) {
+        const selected = m === currentTrainer ? "selected" : "";
+        options += `<option value="${m}" ${selected}>${m}</option>`;
+      }
+    });
+
+    return `
+      <div class="edu-card">
+        <span class="item-name">🟠 ${trainee}</span>
+        <select class="edu-select" onchange="setEducationTrainer('${trainee}', this.value)">
+          ${options}
+        </select>
+      </div>
+    `;
+  }).join("");
+}
+
+function setEducationTrainer(trainee, trainer) {
+  const sData = appData.shifts[currentShift];
+  if (trainer) {
+    sData.education[trainee] = trainer;
+  } else {
+    delete sData.education[trainee];
+  }
+  saveAppData();
+  renderBoard();
+}
+
+function renderBoard() {
+  const sData = appData.shifts[currentShift];
+  renderScheduleBoard(sData.schedule, sData, currentShift, sData.education || {});
 }
