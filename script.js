@@ -120,7 +120,7 @@ function setupEventListeners() {
 
   document.getElementById("createButton").addEventListener("click", handleCreateSchedule);
 
-  // ホワイトボード内の交代（プルダウン変更）と教育の自動見直し
+  // ホワイトボード内の交代（プルダウン変更）
   document.getElementById("scheduleArea").addEventListener("change", e => {
     if (e.target.classList.contains("board-select")) {
       const day = e.target.dataset.day;
@@ -130,13 +130,10 @@ function setupEventListeners() {
 
       if (sData.schedule && sData.schedule[day]) {
         sData.schedule[day][pos] = newPerson;
-        // 交代後のメンバーに合わせてその日の教育担当を自動再計算
-        sData.dailyEducation = autoAssignTrainers(
-          sData.schedule,
-          sData,
-          currentShift,
-          sData.savedHolidays
-        );
+        // 習得済みポジションに戻した場合は教育担当を消す
+        if (!isUnlearnedForPosition(newPerson, pos, sData)) {
+          delete sData.dailyEducation[`${day}_${pos}`];
+        }
         saveAppData();
         renderBoard();
         if (!document.getElementById("panel-education").classList.contains("hidden")) {
@@ -287,22 +284,13 @@ function handleCreateSchedule() {
     return;
   }
 
-  // 今回の年休状態をホワイトボード表示用に保存
   sData.savedHolidays = JSON.parse(JSON.stringify(sData.holidays || {}));
-
-  // 早出表の自動作成
   const newSchedule = generateBestSchedule(sData, currentShift);
   sData.schedule = newSchedule;
 
-  // 教育担当の自動振り分け
-  sData.dailyEducation = autoAssignTrainers(
-    newSchedule,
-    sData,
-    currentShift,
-    sData.savedHolidays
-  );
+  // 自動作成時は教育をリセット（必要な日だけ手動で入れるため）
+  sData.dailyEducation = {};
 
-  // 累積担当回数の加算
   const positions = POSITIONS_BY_SHIFT[currentShift];
   for (const day of DAYS) {
     for (const pos of positions) {
@@ -314,7 +302,6 @@ function handleCreateSchedule() {
     }
   }
 
-  // 年休入力チェックを自動クリア
   sData.holidays = {};
   sData.members.forEach(m => {
     sData.holidays[m] = {};
@@ -326,7 +313,7 @@ function handleCreateSchedule() {
   renderBoard();
 }
 
-// 🎓教育パネル：自動割り当てされた教育担当の手動微調整も可能
+// 🎓教育パネル：手動で「曜日・ポジション」に教育対象者と教育担当者を入れられる
 function renderEducationPanel() {
   const container = document.getElementById("educationList");
   const sData = appData.shifts[currentShift];
@@ -337,41 +324,82 @@ function renderEducationPanel() {
   }
 
   const positions = POSITIONS_BY_SHIFT[currentShift];
-  const entries = [];
 
+  // 1. 新規で教育を入れるフォーム（曜日・ポジション・教育される人・教育する人）
+  let dayOpts = DAYS.map(d => `<option value="${d}">${d}曜</option>`).join("");
+  let posOpts = positions.map(p => `<option value="${p}">${p}</option>`).join("");
+  let memberOpts = sData.members.map(m => `<option value="${m}">${m}</option>`).join("");
+
+  let html = `
+    <div class="edu-card" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div style="display:flex; gap:6px;">
+        <select id="eduDay" class="edu-select" style="min-width:0; flex:1;">${dayOpts}</select>
+        <select id="eduPos" class="edu-select" style="min-width:0; flex:1;">${posOpts}</select>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <select id="eduTrainee" class="edu-select" style="min-width:0; flex:1;">${memberOpts}</select>
+        <span style="font-size:12px; color:#aaa;">に教育する人→</span>
+        <select id="eduTrainer" class="edu-select" style="min-width:0; flex:1;">${memberOpts}</select>
+      </div>
+      <button type="button" class="primary-btn" style="padding:8px; font-size:14px;" onclick="applyManualEducation()">この日の教育を反映</button>
+    </div>
+  `;
+
+  // 2. 現在表に入っている未習得（🟠）枠の一覧と教育担当変更
+  const entries = [];
   for (const day of DAYS) {
     for (const pos of positions) {
       const person = sData.schedule[day]?.[pos];
-      if (person && hasUnlearnedSkill(person, sData, currentShift)) {
+      if (person && isUnlearnedForPosition(person, pos, sData)) {
         entries.push({ day, pos, trainee: person, key: `${day}_${pos}` });
       }
     }
   }
 
-  if (entries.length === 0) {
-    container.innerHTML = `<p class="panel-note">今回の早出表に教育対象者（🟠）はいません</p>`;
+  if (entries.length > 0) {
+    html += entries.map(item => {
+      const currentTrainer = sData.dailyEducation[item.key] || "";
+      let options = `<option value="">-- 教育なし --</option>`;
+      sData.members.forEach(m => {
+        if (m !== item.trainee) {
+          const selected = m === currentTrainer ? "selected" : "";
+          options += `<option value="${m}" ${selected}>${m}</option>`;
+        }
+      });
+
+      return `
+        <div class="edu-card">
+          <span class="item-name">${item.day}(${item.pos}) 🟠${item.trainee}</span>
+          <select class="edu-select" onchange="setDailyTrainer('${item.key}', this.value)">
+            ${options}
+          </select>
+        </div>
+      `;
+    }).join("");
+  }
+
+  container.innerHTML = html;
+}
+
+function applyManualEducation() {
+  const sData = appData.shifts[currentShift];
+  const day = document.getElementById("eduDay").value;
+  const pos = document.getElementById("eduPos").value;
+  const trainee = document.getElementById("eduTrainee").value;
+  const trainer = document.getElementById("eduTrainer").value;
+
+  if (!trainee || !trainer || trainee === trainer) {
+    alert("教育される人と教育する人は別の人を選んでください。");
     return;
   }
 
-  container.innerHTML = entries.map(item => {
-    const currentTrainer = sData.dailyEducation[item.key] || "";
-    let options = `<option value="">-- 教育なし --</option>`;
-    sData.members.forEach(m => {
-      if (m !== item.trainee) {
-        const selected = m === currentTrainer ? "selected" : "";
-        options += `<option value="${m}" ${selected}>${m}</option>`;
-      }
-    });
+  // その日のそのポジションに教育対象者を配置し、教育担当者をセット
+  sData.schedule[day][pos] = trainee;
+  sData.dailyEducation[`${day}_${pos}`] = trainer;
 
-    return `
-      <div class="edu-card">
-        <span class="item-name">${item.day}(${item.pos}) 🟠${item.trainee}</span>
-        <select class="edu-select" onchange="setDailyTrainer('${item.key}', this.value)">
-          ${options}
-        </select>
-      </div>
-    `;
-  }).join("");
+  saveAppData();
+  renderEducationPanel();
+  renderBoard();
 }
 
 function setDailyTrainer(key, trainer) {
