@@ -70,7 +70,7 @@ function generateCandidateSchedule(shiftData, positions) {
         return scoreA - scoreB;
       });
 
-      const chosen = shuffled[0];
+      const chosen = shuffled.shift();
       schedule[day][pos] = chosen;
       assignedToday.add(chosen);
       tempCount[chosen] = (tempCount[chosen] || 0) + 1;
@@ -162,8 +162,9 @@ function autoAssignTrainers(schedule, shiftData, shiftKey, holidaysSnapshot) {
       );
 
       if (trainers.length > 0) {
-        autoEdu[`${day}_${pos}`] = trainers[0];
-        busyToday.add(trainers[0]);
+        const pickedTrainer = trainers.shift();
+        autoEdu[`${day}_${pos}`] = pickedTrainer;
+        busyToday.add(pickedTrainer);
       }
     }
   }
