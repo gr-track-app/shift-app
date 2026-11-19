@@ -70,7 +70,7 @@ function generateCandidateSchedule(shiftData, positions) {
         return scoreA - scoreB;
       });
 
-      const chosen = shuffled;
+      const chosen = shuffled[0];
       schedule[day][pos] = chosen;
       assignedToday.add(chosen);
       tempCount[chosen] = (tempCount[chosen] || 0) + 1;
@@ -138,10 +138,9 @@ function hasUnlearnedSkill(member, shiftData, shiftKey) {
   return positions.some(pos => !shiftData.skills?.[member]?.[pos]);
 }
 
-// 教育担当の自動振り分け（曜日・ポジションごとに最適な指導者を割り当て）
 function autoAssignTrainers(schedule, shiftData, shiftKey, holidaysSnapshot) {
   const positions = POSITIONS_BY_SHIFT[shiftKey];
-  const autoEdu = {}; // { "月_B": "安部" } の形式で保持
+  const autoEdu = {};
 
   for (const day of DAYS) {
     const busyToday = new Set();
@@ -153,7 +152,6 @@ function autoAssignTrainers(schedule, shiftData, shiftKey, holidaysSnapshot) {
       const trainee = schedule[day]?.[pos];
       if (!trainee || !hasUnlearnedSkill(trainee, shiftData, shiftKey)) continue;
 
-      // 休みでなく、今日まだ早出にも教育にも入っておらず、そのポジションのスキルを持つ人
       const trainers = shuffleArray(
         shiftData.members.filter(m =>
           m !== trainee &&
@@ -164,8 +162,8 @@ function autoAssignTrainers(schedule, shiftData, shiftKey, holidaysSnapshot) {
       );
 
       if (trainers.length > 0) {
-        autoEdu[`${day}_${pos}`] = trainers;
-        busyToday.add(trainers);
+        autoEdu[`${day}_${pos}`] = trainers[0];
+        busyToday.add(trainers[0]);
       }
     }
   }
@@ -186,7 +184,6 @@ function renderScheduleBoard(schedule, shiftData, shiftKey, dailyEduMap = {}, sa
   let html = "";
 
   for (const day of DAYS) {
-    // その日の休み（年休）メンバーを取得
     const offMembers = shiftData.members.filter(m => savedHolidays?.[m]?.[day]);
 
     html += `<div class="day-block">`;
