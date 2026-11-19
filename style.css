@@ -222,3 +222,44 @@ input:not([type="checkbox"]){
     white-space:nowrap;
 
 }
+/* ===== 1直・2直切り替えボタン ===== */
+.shift-switch {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.shiftBtn {
+  flex: 1;
+  padding: 10px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: #ccc;
+}
+
+.shiftBtn.active {
+  background: #e60012;
+  color: #fff;
+  border-color: #e60012;
+}
+
+/* ===== 教育ボタン・追加ボタン ===== */
+.main-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sub-btn, #addEducationBtn {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: bold;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #222;
+  color: #fff;
+}
