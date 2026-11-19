@@ -385,3 +385,22 @@ body {
   font-weight: bold;
   margin-top: 2px;
 }
+/* ===== 休み表示（早出できない人） ===== */
+.day-holidays {
+  background: #fafafa;
+  border-top: 1px dashed #ddd;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #666;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.holiday-tag {
+  background: #eee;
+  color: #444;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
