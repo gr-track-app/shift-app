@@ -1,70 +1,104 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>早出表</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>GR TRACK MANAGER</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
 
-  <div class="header">
-    <h1>早出表</h1>
+  <!-- ヘッダー＆直切り替え -->
+  <header class="header">
+    <div class="title-row">
+      <span class="gr-badge">GR</span>
+      <h1>TRACK MANAGER</h1>
+    </div>
 
     <div class="shift-switch">
-      <button type="button" class="shiftBtn active" data-shift="1">1直</button>
-      <button type="button" class="shiftBtn" data-shift="2">2直</button>
+      <button type="button" class="shiftBtn active" data-shift="1">1直 (A・B・C・D)</button>
+      <button type="button" class="shiftBtn" data-shift="2">2直 (A・B・C)</button>
     </div>
 
-    <div class="main-buttons">
-      <button id="createButton" type="button" class="primary-btn">
-        早出表を作成
-      </button>
-
-      <button id="educationButton" type="button" class="sub-btn">
-        教育
-      </button>
-    </div>
-  </div>
-
-  <!-- 教育エリア（重複を削除して1つに整理） -->
-  <div id="educationArea" class="education-box">
-    <h3>教育設定</h3>
-    <div id="educationList"></div>
-    <button id="addEducationBtn" type="button">＋教育を追加</button>
-  </div>
-
-  <details class="accordion">
-    <summary>メンバー・スキル管理</summary>
-    <div class="accordion-body">
-
-      <div class="add-row">
-        <input id="memberInput" type="text" placeholder="名前を入力">
-        <button id="addMemberBtn" type="button">追加</button>
+    <!-- 3段構成のメインボタン -->
+    <div class="menu-grid">
+      <!-- 1段目 -->
+      <div class="menu-row">
+        <button type="button" class="nav-btn" data-target="panel-member">👥 メンバー</button>
+        <button type="button" class="nav-btn" data-target="panel-holiday">📅 年休</button>
       </div>
-
-      <div id="memberList" class="member-list"></div>
-
+      <!-- 2段目 -->
+      <div class="menu-row">
+        <button type="button" class="nav-btn" data-target="panel-education">🎓 教育</button>
+        <button type="button" class="nav-btn" data-target="panel-skill">⚙️ スキル</button>
+      </div>
+      <!-- 3段目 -->
+      <div class="menu-row">
+        <button id="createButton" type="button" class="primary-btn">📝 早出表作成</button>
+      </div>
     </div>
-  </details>
+  </header>
 
-  <details class="accordion">
-    <summary>休み入力</summary>
-    <div class="accordion-body">
-      <div id="holidayArea"></div>
+  <!-- 1. メンバー管理パネル -->
+  <section id="panel-member" class="panel hidden">
+    <div class="panel-header">
+      <h2>👥 メンバー管理</h2>
+      <button type="button" class="close-panel-btn">閉じる</button>
     </div>
-  </details>
+    <div class="add-row">
+      <input id="memberInput" type="text" placeholder="新しいメンバー名">
+      <button id="addMemberBtn" type="button">追加</button>
+    </div>
+    <div id="memberList" class="list-area"></div>
+  </section>
 
-  <div class="board">
-    <div id="scheduleArea"></div>
-  </div>
+  <!-- 2. 年休入力パネル -->
+  <section id="panel-holiday" class="panel hidden">
+    <div class="panel-header">
+      <h2>📅 年休入力</h2>
+      <button type="button" class="close-panel-btn">閉じる</button>
+    </div>
+    <p class="panel-note">※チェックした日は自動配置から除外されます（早出表作成後に自動クリア）</p>
+    <div id="holidayArea" class="list-area"></div>
+  </section>
+
+  <!-- 3. 教育設定パネル -->
+  <section id="panel-education" class="panel hidden">
+    <div class="panel-header">
+      <h2>🎓 教育対象者一覧</h2>
+      <button type="button" class="close-panel-btn">閉じる</button>
+    </div>
+    <p class="panel-note">※今回の早出表に入っている未習得者（🟠）のみ表示されます</p>
+    <div id="educationList" class="list-area"></div>
+  </section>
+
+  <!-- 4. スキル管理パネル -->
+  <section id="panel-skill" class="panel hidden">
+    <div class="panel-header">
+      <h2>⚙️ スキル管理</h2>
+      <button type="button" class="close-panel-btn">閉じる</button>
+    </div>
+    <p class="panel-note">※チェック済みのポジションのみ自動配置されます</p>
+    <div id="skillArea" class="list-area"></div>
+  </section>
+
+  <!-- ホワイトボード（早出表エリア） -->
+  <main class="board-wrapper">
+    <div class="board-header">
+      <span id="boardTitle">1直 早出表</span>
+      <span class="board-sub">※枠内タップで担当変更可</span>
+    </div>
+    <div id="scheduleArea" class="board">
+      <div class="empty-board">「📝 早出表作成」を押してください</div>
+    </div>
+  </main>
 
 </div>
 
-<script src="script.js"></script>
 <script src="scheduler.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
