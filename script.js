@@ -13,10 +13,11 @@ function createEmptyShiftData() {
     members: [],
     skills: {},
     holidays: {},
+    savedHolidays: {},
     count: {},
     posCount: {},
     schedule: null,
-    education: {}
+    dailyEducation: {}
   };
 }
 
@@ -52,9 +53,10 @@ function normalizeCurrentShiftData() {
   if (!Array.isArray(sData.members)) sData.members = [];
   if (!sData.skills) sData.skills = {};
   if (!sData.holidays) sData.holidays = {};
+  if (!sData.savedHolidays) sData.savedHolidays = {};
   if (!sData.count) sData.count = {};
   if (!sData.posCount) sData.posCount = {};
-  if (!sData.education) sData.education = {};
+  if (!sData.dailyEducation) sData.dailyEducation = {};
 
   sData.members.forEach(m => {
     if (!sData.skills[m]) sData.skills[m] = {};
@@ -118,6 +120,7 @@ function setupEventListeners() {
 
   document.getElementById("createButton").addEventListener("click", handleCreateSchedule);
 
+  // ホワイトボード内の交代（プルダウン変更）と教育の自動見直し
   document.getElementById("scheduleArea").addEventListener("change", e => {
     if (e.target.classList.contains("board-select")) {
       const day = e.target.dataset.day;
@@ -127,6 +130,13 @@ function setupEventListeners() {
 
       if (sData.schedule && sData.schedule[day]) {
         sData.schedule[day][pos] = newPerson;
+        // 交代後のメンバーに合わせてその日の教育担当を自動再計算
+        sData.dailyEducation = autoAssignTrainers(
+          sData.schedule,
+          sData,
+          currentShift,
+          sData.savedHolidays
+        );
         saveAppData();
         renderBoard();
         if (!document.getElementById("panel-education").classList.contains("hidden")) {
@@ -175,7 +185,6 @@ function deleteMember(name) {
   delete sData.holidays[name];
   delete sData.count[name];
   delete sData.posCount[name];
-  delete sData.education[name];
   saveAppData();
   refreshAllViews();
 }
@@ -278,9 +287,22 @@ function handleCreateSchedule() {
     return;
   }
 
+  // 今回の年休状態をホワイトボード表示用に保存
+  sData.savedHolidays = JSON.parse(JSON.stringify(sData.holidays || {}));
+
+  // 早出表の自動作成
   const newSchedule = generateBestSchedule(sData, currentShift);
   sData.schedule = newSchedule;
 
+  // 教育担当の自動振り分け
+  sData.dailyEducation = autoAssignTrainers(
+    newSchedule,
+    sData,
+    currentShift,
+    sData.savedHolidays
+  );
+
+  // 累積担当回数の加算
   const positions = POSITIONS_BY_SHIFT[currentShift];
   for (const day of DAYS) {
     for (const pos of positions) {
@@ -292,11 +314,11 @@ function handleCreateSchedule() {
     }
   }
 
+  // 年休入力チェックを自動クリア
   sData.holidays = {};
   sData.members.forEach(m => {
     sData.holidays[m] = {};
   });
-  sData.education = {};
 
   saveAppData();
   closeAllPanels();
@@ -304,6 +326,7 @@ function handleCreateSchedule() {
   renderBoard();
 }
 
+// 🎓教育パネル：自動割り当てされた教育担当の手動微調整も可能
 function renderEducationPanel() {
   const container = document.getElementById("educationList");
   const sData = appData.shifts[currentShift];
@@ -314,30 +337,27 @@ function renderEducationPanel() {
   }
 
   const positions = POSITIONS_BY_SHIFT[currentShift];
-  const traineesSet = new Set();
+  const entries = [];
 
   for (const day of DAYS) {
     for (const pos of positions) {
       const person = sData.schedule[day]?.[pos];
       if (person && hasUnlearnedSkill(person, sData, currentShift)) {
-        traineesSet.add(person);
+        entries.push({ day, pos, trainee: person, key: `${day}_${pos}` });
       }
     }
   }
 
-  const trainees = Array.from(traineesSet);
-
-  if (trainees.length === 0) {
+  if (entries.length === 0) {
     container.innerHTML = `<p class="panel-note">今回の早出表に教育対象者（🟠）はいません</p>`;
     return;
   }
 
-  container.innerHTML = trainees.map(trainee => {
-    const currentTrainer = sData.education[trainee] || "";
-
+  container.innerHTML = entries.map(item => {
+    const currentTrainer = sData.dailyEducation[item.key] || "";
     let options = `<option value="">-- 教育なし --</option>`;
     sData.members.forEach(m => {
-      if (m !== trainee) {
+      if (m !== item.trainee) {
         const selected = m === currentTrainer ? "selected" : "";
         options += `<option value="${m}" ${selected}>${m}</option>`;
       }
@@ -345,8 +365,8 @@ function renderEducationPanel() {
 
     return `
       <div class="edu-card">
-        <span class="item-name">🟠 ${trainee}</span>
-        <select class="edu-select" onchange="setEducationTrainer('${trainee}', this.value)">
+        <span class="item-name">${item.day}(${item.pos}) 🟠${item.trainee}</span>
+        <select class="edu-select" onchange="setDailyTrainer('${item.key}', this.value)">
           ${options}
         </select>
       </div>
@@ -354,12 +374,12 @@ function renderEducationPanel() {
   }).join("");
 }
 
-function setEducationTrainer(trainee, trainer) {
+function setDailyTrainer(key, trainer) {
   const sData = appData.shifts[currentShift];
   if (trainer) {
-    sData.education[trainee] = trainer;
+    sData.dailyEducation[key] = trainer;
   } else {
-    delete sData.education[trainee];
+    delete sData.dailyEducation[key];
   }
   saveAppData();
   renderBoard();
@@ -367,5 +387,11 @@ function setEducationTrainer(trainee, trainer) {
 
 function renderBoard() {
   const sData = appData.shifts[currentShift];
-  renderScheduleBoard(sData.schedule, sData, currentShift, sData.education || {});
+  renderScheduleBoard(
+    sData.schedule,
+    sData,
+    currentShift,
+    sData.dailyEducation || {},
+    sData.savedHolidays || {}
+  );
 }
