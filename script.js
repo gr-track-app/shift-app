@@ -1,754 +1,224 @@
-// ===============================
-// GR TRACK MANAGER
-// script.js
-// ===============================
+const DAYS = ["月", "火", "水", "木", "金"];
+const POSITIONS_BY_SHIFT = {
+  "1": ["A", "B", "C", "D"],
+  "2": ["A", "B", "C"]
+};
 
-let currentShift = 1;
-let schedule = {};
-
-// ----------------------
-// ボタン取得
-// ----------------------
-
-const shift1Button = document.getElementById("shift1");
-const shift2Button = document.getElementById("shift2");
-
-const memberButton = document.getElementById("memberButton");
-const memberArea = document.getElementById("memberArea");
-
-const addMemberButton = document.getElementById("addMember");
-const memberName = document.getElementById("memberName");
-const memberList = document.getElementById("memberList");
-
-const holidayArea = document.getElementById("holidayArea");
-const holidayButton = document.getElementById("holidayButton");
-
-const educationButton = document.getElementById("educationButton");
-const educationArea = document.getElementById("educationArea");
-
-const addEducationButton = document.getElementById("addEducation");
-const educationList = document.getElementById("educationList");
-
-const saveEducationButton =
-    document.getElementById("saveEducation");
-const fixedTrainerArea =
-    document.querySelector(".fixedTrainerArea");
-// ----------------------
-// 勤務切替
-// ----------------------
-
-shift1Button.addEventListener("click", () => {
-
-    currentShift = 1;
-
-    shift1Button.classList.add("active");
-    shift2Button.classList.remove("active");
-
-});
-
-shift2Button.addEventListener("click", () => {
-
-    currentShift = 2;
-
-    shift2Button.classList.add("active");
-    shift1Button.classList.remove("active");
-
-});
-// ----------------------
-// 保存データ読込
-// ----------------------
-
-let members = JSON.parse(localStorage.getItem("members")) || [];
-
-let skills = JSON.parse(localStorage.getItem("skills")) || {};
-let holidays = JSON.parse(localStorage.getItem("holidays")) || {};
-let educations =
-    JSON.parse(
-        localStorage.getItem("educations")
-    ) || [];
-function saveHolidays() {
-    localStorage.setItem(
-        "holidays",
-        JSON.stringify(holidays)
-    );
-}
-function saveMembers() {
-    localStorage.setItem(
-        "members",
-        JSON.stringify(members)
-    );
+// ランダムシャッフル（公平抽選用）
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-function saveSkills() {
-    localStorage.setItem(
-        "skills",
-        JSON.stringify(skills)
-    );
-}
-function saveEducations() {
+// 1週間分のスケジュールを1パターン生成
+function generateCandidateSchedule(shiftData, positions) {
+  const schedule = {};
+  const tempCount = { ...(shiftData.count || {}) };
+  const tempPosCount = {};
 
-    localStorage.setItem(
-        "educations",
-        JSON.stringify(educations)
-    );
+  shiftData.members.forEach(m => {
+    if (tempCount[m] === undefined) tempCount[m] = 0;
+    tempPosCount[m] = { ...(shiftData.posCount?.[m] || {}) };
+    positions.forEach(p => {
+      if (tempPosCount[m][p] === undefined) tempPosCount[m][p] = 0;
+    });
+  });
 
-}
-// ----------------------
-// メンバー管理開閉
-// ----------------------
+  let prevDayAssigned = new Set();
 
-memberButton.addEventListener("click", () => {
+  for (const day of DAYS) {
+    schedule[day] = {};
+    const assignedToday = new Set();
 
-    if (memberArea.style.display === "none") {
-
-        memberArea.style.display = "block";
-
-    } else {
-
-        memberArea.style.display = "none";
-
-    }
-
-});
-addEducationButton.addEventListener("click", () => {
-
-    
-    educationList.innerHTML += `
-<div class="educationCard">
-
-<b>名前</b><br>
-
-<select>
-
-<option value="">選択してください</option>
-
-${members.map(member => `
-<option value="${member}">
-${member}
-</option>
-`).join("")}
-
-</select>
-
-
-<br><br>
-
-<b>教育工程</b><br>
-
-<label>
-<input
-type="radio"
-name="position">
-<span>A</span>
-</label>
-
-<label>
-<input
-type="radio"
-name="position">
-B
-</label>
-
-<label>
-<input
-type="radio"
-name="position">
-C
-</label>
-
-<label>
-<input
-type="radio"
-name="position">
-D
-</label>
-<br><br>
-
-<b>教育曜日</b><br>
-
-<label>
-<input
-type="checkbox">
-月
-</label>
-
-<label>
-<input
-type="checkbox">
-火
-</label>
-
-<label>
-<input
-type="checkbox">
-水
-</label>
-
-<label>
-<input
-type="checkbox">
-木
-</label>
-
-<label>
-<input
-type="checkbox">
-金
-</label>
-<br><br>
-
-<b>教育担当</b><br>
-
-<label>
-<input
-type="radio"
-name="trainerMode"
-value="auto"
-checked>
-自動
-</label>
-
-<label>
-<input
-type="radio"
-name="trainerMode"
-value="fixed">
-固定
-</label>
-<br><br>
-
-<div class="fixedTrainerArea">
-
-<b>固定担当</b><br>
-
-<select>
-
-<option value="">選択してください</option>
-
-${members.map(member => `
-<option value="${member}">
-${member}
-</option>
-`).join("")}
-
-</select>
-
-</div>
-</div>
-`;
-const fixedTrainerArea =
-    educationList.lastElementChild.querySelector(".fixedTrainerArea");
-
-fixedTrainerArea.style.display = "none";
-const trainerRadios =
-    educationList.lastElementChild.querySelectorAll(
-        'input[name="trainerMode"]'
-    );
-
-trainerRadios.forEach(radio => {
-
-    radio.addEventListener("change", () => {
-
-        fixedTrainerArea.style.display =
-            radio.value === "fixed"
-                ? "block"
-                : "none";
-
+    // 候補者が少ないポジションから優先して埋める（詰まり防止）
+    const sortedPositions = [...positions].sort((a, b) => {
+      const countA = shiftData.members.filter(m =>
+        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[a]
+      ).length;
+      const countB = shiftData.members.filter(m =>
+        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[b]
+      ).length;
+      return countA - countB;
     });
 
-});
-});
-educationButton.addEventListener(
-    "click",
-    () => {
+    for (const pos of sortedPositions) {
+      // その日に年休でなく、まだ今日配置されておらず、このポジションのスキルを持つ人
+      const candidates = shiftData.members.filter(m => {
+        const isHoliday = Boolean(shiftData.holidays?.[m]?.[day]);
+        const hasSkill = Boolean(shiftData.skills?.[m]?.[pos]);
+        return !isHoliday && !assignedToday.has(m) && hasSkill;
+      });
 
-        if (
-            !currentSchedule
-        ) {
+      if (candidates.length === 0) {
+        schedule[day][pos] = "";
+        continue;
+      }
 
-            alert(
-                "先に早出表を作成してください"
-            );
+      // 同点時の偏りをなくすため先にシャッフル
+      const shuffled = shuffleArray(candidates);
 
-            return;
+      // スコアが低い（優先度が高い）順にソート
+      shuffled.sort((a, b) => {
+        const scoreA =
+          (tempCount[a] || 0) * 100 +
+          (tempPosCount[a]?.[pos] || 0) * 35 +
+          (prevDayAssigned.has(a) ? 25 : 0);
 
+        const scoreB =
+          (tempCount[b] || 0) * 100 +
+          (tempPosCount[b]?.[pos] || 0) * 35 +
+          (prevDayAssigned.has(b) ? 25 : 0);
+
+        return scoreA - scoreB;
+      });
+
+      const chosen = shuffled[0];
+      schedule[day][pos] = chosen;
+      assignedToday.add(chosen);
+      tempCount[chosen] = (tempCount[chosen] || 0) + 1;
+      tempPosCount[chosen][pos] = (tempPosCount[chosen][pos] || 0) + 1;
+    }
+
+    prevDayAssigned = assignedToday;
+  }
+
+  return schedule;
+}
+
+// スケジュール全体の公平性を採点（低いほど良い）
+function evaluateSchedule(schedule, shiftData, positions) {
+  let penalty = 0;
+  const weekCount = {};
+  shiftData.members.forEach(m => (weekCount[m] = 0));
+
+  for (let i = 0; i < DAYS.length; i++) {
+    const day = DAYS[i];
+    const prevDay = i > 0 ? DAYS[i - 1] : null;
+
+    for (const pos of positions) {
+      const person = schedule[day][pos];
+      if (!person) {
+        penalty += 5000; // 空き枠ペナルティ
+        continue;
+      }
+      weekCount[person] = (weekCount[person] || 0) + 1;
+
+      if (prevDay) {
+        // 前日と同じポジションの連続
+        if (schedule[prevDay][pos] === person) {
+          penalty += 40;
         }
-
-
-        if (
-            educationArea.style.display ===
-            "none"
-        ) {
-
-            educationArea.style.display =
-                "block";
-
-            showEducationMode();
-
-        } else {
-
-            educationArea.style.display =
-                "none";
-
+        // 前日も早出だった場合（連続勤務）
+        const wasYesterday = positions.some(p => schedule[prevDay][p] === person);
+        if (wasYesterday) {
+          penalty += 15;
         }
-
+      }
     }
-);
-function showEducationMode() {
-
-    const educationList =
-        document.getElementById(
-            "educationList"
-        );
-
-
-    educationList.innerHTML = "";
-
-
-    if (
-        !currentSchedule
-    ) {
-
-        return;
-
-    }
-
-
-    const days = [
-        "月",
-        "火",
-        "水",
-        "木",
-        "金"
-    ];
-
-
-    days.forEach(day => {
-
-        const daySchedule =
-            currentSchedule[day];
-
-
-        if (
-            !daySchedule
-        ) {
-
-            return;
-
-        }
-
-
-        getPositions()
-        .forEach(position => {
-
-            const member =
-                daySchedule[position];
-
-
-            if (
-                !member ||
-                member === "-"
-            ) {
-
-                return;
-
-            }
-
-
-            // 未習得スキルがある人だけ
-            if (
-                !isTraining(member)
-            ) {
-
-                return;
-
-            }
-
-
-            const row =
-                document.createElement(
-                    "div"
-                );
-
-
-            row.className =
-                "education-row";
-
-
-            row.innerHTML = `
-
-                <span>
-                    ${day}
-                </span>
-
-                <span>
-                    ${position}
-                </span>
-
-                <span>
-                    ${member}
-                </span>
-
-                <span>
-                    🟠
-                </span>
-
-            `;
-
-
-            educationList.appendChild(
-                row
-            );
-
-        });
-
-    });
-
-
-    if (
-        educationList.children.length === 0
-    ) {
-
-        educationList.innerHTML = `
-            <p>
-                教育対象者はいません
-            </p>
-        `;
-
-    }
-
-}
-saveEducationButton.addEventListener("click", () => {
-
-    const cards =
-    document.querySelectorAll(".educationCard");
-educations = [];
-cards.forEach(card => {
-
-    const member =
-    card.querySelector("select").value;
-const position =
-    card.querySelector('input[name="position"]:checked')
-    ?.parentNode.textContent.trim();
-    const days = [];
-
-card.querySelectorAll('input[type="checkbox"]').forEach(day => {
-
-    if (day.checked) {
-
-        days.push(
-            day.parentNode.textContent.trim()
-        );
-
-    }
-
-});
-const trainerMode =
-    card.querySelector('input[name="trainerMode"]:checked')
-    ?.value;
-    const trainer =
-    card.querySelector(".fixedTrainerArea select")
-    ?.value;
-    educations.push({
-
-    member: member,
-    position: position,
-    days: days,
-    trainerMode: trainerMode,
-    trainer: trainer
-
-});
-
-});
-    saveEducations();
-
-alert("教育設定を保存しました");
-});
-// ----------------------
-// メンバー追加
-// ----------------------
-
-addMemberButton.addEventListener("click", () => {
-
-    const name = memberName.value.trim();
-
-    if (name === "") {
-
-        alert("名前を入力してください");
-        return;
-
-    }
-
-members.push(name);
-
-if (!skills[name]) {
-
-    skills[name] = {
-
-        1: {
-            A: false,
-            B: false,
-            C: false,
-            D: false
-        },
-
-        2: {
-            A: false,
-            B: false,
-            C: false
-        }
-
-    };
-
+  }
+
+  // 1週間内の担当回数のバラつきペナルティ
+  const counts = Object.values(weekCount);
+  if (counts.length > 0) {
+    const maxC = Math.max(...counts);
+    const minC = Math.min(...counts);
+    penalty += (maxC - minC) * 80;
+  }
+
+  return penalty;
 }
 
-saveMembers();
-saveSkills();
+// 50パターン試行して最も公平な早出表を作成
+function generateBestSchedule(shiftData, shiftKey) {
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  let bestSchedule = null;
+  let bestScore = Infinity;
 
-memberName.value = "";
-
-drawMemberList();
-drawSkillList();
-});
-
-// ----------------------
-// 一覧表示
-// ----------------------
-
-function drawMemberList() {
-
-    memberList.innerHTML = "";
-
-    members.forEach((name, index) => {
-
-        const row = document.createElement("div");
-        row.className = "member-row";
-
-        const span = document.createElement("span");
-        span.textContent = name;
-
-        const deleteButton = document.createElement("button");
-        deleteButton.textContent = "🗑️";
-
-        deleteButton.addEventListener("click", () => {
-
-        members.splice(index, 1);
-
-delete skills[name];
-
-saveMembers();
-saveSkills();
-
-drawMemberList();
-drawSkillList();    
-
-        });
-
-        row.appendChild(span);
-        row.appendChild(deleteButton);
-
-        memberList.appendChild(row);
-
-    });
-
-}
-// ----------------------
-// 休み入力開閉
-// ----------------------
-
-holidayButton.addEventListener("click", () => {
-
-    if (holidayArea.style.display === "none") {
-
-        holidayArea.style.display = "block";
-
-    } else {
-
-        holidayArea.style.display = "none";
-
+  for (let i = 0; i < 50; i++) {
+    const candidate = generateCandidateSchedule(shiftData, positions);
+    const score = evaluateSchedule(candidate, shiftData, positions);
+    if (score < bestScore) {
+      bestScore = score;
+      bestSchedule = candidate;
     }
+  }
 
-    drawHolidayList();
-
-});
-// ----------------------
-// スキル管理
-// ----------------------
-
-
-
-const skillButton = document.getElementById("skillButton");
-const skillArea = document.getElementById("skillArea");
-const skillList = document.getElementById("skillList");
-
-skillButton.addEventListener("click", () => {
-
-    if (skillArea.style.display === "none") {
-
-        skillArea.style.display = "block";
-
-    } else {
-
-        skillArea.style.display = "none";
-
-    }
-
-    drawSkillList();
-
-});
-
-// ----------------------
-// 早出表
-// ----------------------
-
-document
-.getElementById("createButton")
-.addEventListener("click",()=>{
-createSchedule();
-    
-});
-
-
-
-// ----------------------
-// 起動時
-// ----------------------
-
-drawMemberList();
-
-drawHolidayList();
-function drawHolidayList() {
-
-    holidayArea.innerHTML = "";
-
-    const days = ["月", "火", "水", "木", "金"];
-
-    members.forEach((name) => {
-
-        const card = document.createElement("div");
-        card.className = "member-row";
-
-        let html = `<strong>${name}</strong>`;
-        html += `<div class="holiday-checks">`;
-
-        days.forEach((day) => {
-
-            if (!holidays[name]) {
-                holidays[name] = {};
-            }
-
-            const checked = holidays[name][day]
-                ? "checked"
-                : "";
-
-            html += `
-<label>
-<input
-type="checkbox"
-class="holiday-checkbox"
-data-name="${name}"
-data-day="${day}"
-${checked}>
-<span>${day}</span>
-</label>
-`;
-
-        });
-
-        html += `</div>`;
-
-        card.innerHTML = html;
-
-        holidayArea.appendChild(card);
-
-    });
-    document.querySelectorAll(".holiday-checkbox").forEach((box) => {
-
-        box.addEventListener("change", () => {
-
-            const name = box.dataset.name;
-            const day = box.dataset.day;
-
-            if (!holidays[name]) {
-                holidays[name] = {};
-            }
-
-            holidays[name][day] = box.checked;
-
-            saveHolidays();
-
-        });
-
-    });
+  return bestSchedule;
 }
-function drawSkillList() {
 
-    skillList.innerHTML = "";
+// 未習得スキルがあるメンバーか判定（🟠表示用）
+function hasUnlearnedSkill(member, shiftData, shiftKey) {
+  if (!member) return false;
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  return positions.some(pos => !shiftData.skills?.[member]?.[pos]);
+}
 
-    members.forEach((name) => {
+// ホワイトボード描画（左：A・B / 右：C・D）
+function renderScheduleBoard(schedule, shiftData, shiftKey, educationMap = {}) {
+  const scheduleArea = document.getElementById("scheduleArea");
+  if (!schedule || Object.keys(schedule).length === 0) {
+    scheduleArea.innerHTML = `<div class="empty-board">「📝 早出表作成」を押してください</div>`;
+    return;
+  }
 
-        if (!skills[name]) skills[name] = {};
-        if (!skills[name][currentShift]) skills[name][currentShift] = {};
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  const leftPositions = positions.filter(p => p === "A" || p === "B");
+  const rightPositions = positions.filter(p => p === "C" || p === "D");
 
-        const row = document.createElement("div");
-        row.className = "member-row";
+  let html = "";
 
-        let html = `<span class="member-name">${name}</span>`;
+  for (const day of DAYS) {
+    html += `<div class="day-block">`;
+    html += `<div class="day-label">${day}曜日</div>`;
+    html += `<div class="pos-grid">`;
 
-        const skillListForShift =
-            currentShift === 1
-                ? ["A","B","C","D"]
-                : ["A","B","C"];
+    // 左列（A・B）
+    html += `<div class="pos-col">`;
+    for (const pos of leftPositions) {
+      html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, shiftKey, educationMap);
+    }
+    html += `</div>`;
 
-        html += `<div class="skill-checks">`;
+    // 右列（C・D）
+    html += `<div class="pos-col">`;
+    for (const pos of rightPositions) {
+      html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, shiftKey, educationMap);
+    }
+    html += `</div>`;
 
-        skillListForShift.forEach((skill) => {
+    html += `</div></div>`;
+  }
 
-            const checked =
-                skills[name][currentShift][skill]
-                    ? "checked"
-                    : "";
+  scheduleArea.innerHTML = html;
+}
 
-            html += `
-<label>
-${skill}
-<input
-type="checkbox"
-class="skill-checkbox"
-data-name="${name}"
-data-shift="${currentShift}"
-data-skill="${skill}"
-${checked}>
-</label>
-`;
+// 各枠（ポジション）のセルHTML生成（プルダウン変更＆教育担当表示）
+function buildPositionCellHTML(day, pos, assignedPerson, shiftData, shiftKey, educationMap) {
+  const showOrange = hasUnlearnedSkill(assignedPerson, shiftData, shiftKey);
+  const trainer = assignedPerson ? educationMap[assignedPerson] : "";
 
-        });
+  let optionsHtml = `<option value="">-- 未定 --</option>`;
+  shiftData.members.forEach(m => {
+    const selected = m === assignedPerson ? "selected" : "";
+    optionsHtml += `<option value="${m}" ${selected}>${m}</option>`;
+  });
 
-        html += `</div>`;
-
-        row.innerHTML = html;
-
-        skillList.appendChild(row);
-
-    });
-
-    document.querySelectorAll(".skill-checkbox").forEach((box) => {
-
-        box.addEventListener("change", () => {
-
-            const name = box.dataset.name;
-            const shift = box.dataset.shift;
-            const skill = box.dataset.skill;
-
-            if (!skills[name]) skills[name] = {};
-            if (!skills[name][shift]) skills[name][shift] = {};
-
-            skills[name][shift][skill] = box.checked;
-
-            saveSkills();
-
-        });
-
-    });
-
+  return `
+    <div class="pos-cell">
+      <span class="pos-tag">${pos}</span>
+      <div class="cell-content">
+        <div class="person-select-row">
+          ${showOrange ? `<span>🟠</span>` : ""}
+          <select class="board-select" data-day="${day}" data-pos="${pos}">
+            ${optionsHtml}
+          </select>
+        </div>
+        ${trainer ? `<div class="trainer-badge">👨‍🏫 教育: ${trainer}</div>` : ""}
+      </div>
+    </div>
+  `;
 }
