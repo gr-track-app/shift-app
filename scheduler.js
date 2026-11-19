@@ -1,1271 +1,208 @@
-// ===============================
-// GR TRACK MANAGER
-// Scheduler Engine Version2
-// Part1
-// ===============================
-
-
-// -------------------------------
-// ポジション取得
-// -------------------------------
-let currentSchedule = null;
-let currentEducation = null;
-function getPositions() {
-
-    return currentShift === 1
-        ? ["A","B","C","D"]
-        : ["A","B","C"];
-
-}
-
-
-// -------------------------------
-// スキル判定
-// -------------------------------
-
-function canDo(member, position) {
-
-    if (!skills[member]) {
-        return false;
-    }
-
-
-    if (!skills[member][currentShift]) {
-        return false;
-    }
-
-
-    return skills[member][currentShift][position] === true;
-
-}
-
-
-// -------------------------------
-// 教育中判定
-// -------------------------------
-
-function isTraining(member) {
-
-    if (!skills[member]) {
-        return true;
-    }
-
-
-    if (!skills[member][currentShift]) {
-        return true;
-    }
-
-
-    const positions =
-        getPositions();
-
-
-    return positions.some(position => {
-
-        return !skills[member][currentShift][position];
-
-    });
-
-}
-
-
-// -------------------------------
-// 休み確認
-// -------------------------------
-
-function isHoliday(member, day) {
-
-    if (!holidays[member]) {
-        return false;
-    }
-
-
-    return holidays[member][day] === true;
-
-}
-
-
-// -------------------------------
-// 出勤可能メンバー取得
-// -------------------------------
-
-function getAvailableMembers(day) {
-
-    return members.filter(member => {
-
-        return !isHoliday(
-            member,
-            day
-        );
-
-    });
-    
-
-}
-// -------------------------------
-// 候補者取得
-// -------------------------------
-
-function getCandidates(
-    memberList,
-    position,
-    usedMembers
-) {
-
-    return memberList.filter(member => {
-
-
-        // 同日重複防止
-        if (
-            usedMembers.includes(member)
-        ) {
-            return false;
-        }
-
-
-        // スキル確認
-        if (
-            !canDo(
-                member,
-                position
-            )
-        ) {
-            return false;
-        }
-
-
-        return true;
-
-    });
-
-}
-
-
-// -------------------------------
-// 担当回数初期化
-// -------------------------------
-
-function createCountTable() {
-
-    const counts = {};
-
-
-    members.forEach(member => {
-
-        counts[member] = 0;
-
-    });
-
-
-    return counts;
-
-}
-// -------------------------------
-// 工程別担当回数
-// -------------------------------
-
-function createPositionCountTable() {
-
-    const positionCounts = {};
-
-    members.forEach(member => {
-
-        positionCounts[member] = {
-            A: 0,
-            B: 0,
-            C: 0,
-            D: 0
-        };
-
-    });
-
-    return positionCounts;
-
-}
-
-// -------------------------------
-// 候補人数確認
-// -------------------------------
-
-function getCandidateCount(
-    memberList,
-    position
-) {
-
-    return memberList.filter(member => {
-
-        return canDo(
-            member,
-            position
-        );
-
-    }).length;
-
-}
-
-
-// -------------------------------
-// 工程順番決定
-// 少ない工程を先に処理
-// -------------------------------
-
-function sortPositions(
-    memberList
-) {
-
-    const positions =
-        getPositions();
-
-
-    return positions.sort((a,b)=>{
-
-
-        const countA =
-            getCandidateCount(
-                memberList,
-                a
-            );
-
-
-        const countB =
-            getCandidateCount(
-                memberList,
-                b
-            );
-        
-
-
-        return countA - countB;
-
-
-    });
-
-}
-
-
-// -------------------------------
-// 前日担当確認
-// -------------------------------
-
-function wasYesterdayMember(
-    member,
-    day,
-    schedule
-) {
-
-    const days = [
-        "月",
-        "火",
-        "水",
-        "木",
-        "金"
-    ];
-
-
-    const index =
-        days.indexOf(day);
-
-
-    if (index <= 0) {
-
-        return false;
-
-    }
-
-
-    const yesterday =
-        days[index - 1];
-
-
-    const positions =
-        currentShift === 1
-            ? ["A","B","C","D"]
-            : ["A","B","C"];
-
-
-    return positions.some(position => {
-
-        return schedule[yesterday]
-            &&
-            schedule[yesterday][position]
-            === member;
-
-    });
-
-}
-// -------------------------------
-// スケジュール採点
-// -------------------------------
-
-function calculateScore(
-    schedule,
-    positionCounts
-) {
-
-    let score = 0;
-members.forEach(member => {
-
-    const counts = positionCounts[member];
-
-    const uniquePositions =
-        Object.values(counts)
-            .filter(count => count > 0)
-            .length;
-
-    score +=
-        (4 - uniquePositions) * 10;
-Object.values(counts).forEach(count => {
-
-    if (count >= 2) {
-
-        score +=
-            (count - 1) * 30;
-
-    }
-
-});
-});
-    return score;
-
-}
-// -------------------------------
-// 公平選択 Version2
-// -------------------------------
-
-function pickMember(
-    candidates,
-    counts,
-    positionCounts,
-    position,
-    day,
-    schedule,
-    usedMembers
-) {
-
-
-    if (
-        candidates.length === 0
-    ) {
-
-        return "-";
-
-    }
-
-
-    candidates.sort((a,b)=>{
-
-
-        // ①担当回数が少ない人優先
-
-        if (
-            counts[a] !== counts[b]
-        ) {
-
-            return counts[a] - counts[b];
-
-        }
-// ①-2 同じ工程の担当回数が少ない人優先
-
-if (
-    positionCounts[a][position] !==
-    positionCounts[b][position]
-) {
-
-    return (
-        positionCounts[a][position] -
-        positionCounts[b][position]
-    );
-
-}
-
-
-        // ②前日担当を避ける
-
-        const aYesterday =
-            wasYesterdayMember(
-                a,
-                day,
-                schedule
-            );
-
-
-        const bYesterday =
-            wasYesterdayMember(
-                b,
-                day,
-                schedule
-            );
-
-
-
-        if (
-            aYesterday !== bYesterday
-        ) {
-
-            return aYesterday ? 1 : -1;
-
-        }
-
-
-
-        // ③同条件ならランダム
-
-        return Math.random() - 0.5;
-
-
-    });
-
-
-
-    const selected =
-    candidates[0];
-
-usedMembers.push(
-    selected
-);
-
-if (selected !== "-") {
-
-    counts[selected]++;
-
-    positionCounts[selected][position]++;
-
-}
-
-return selected;
-}
-
-
-// ===============================
-// Scheduler Engine Version2
-// Part2
-// Schedule Generator
-// ===============================
-
-
-// -------------------------------
-// 1日分作成
-// -------------------------------
-
-function createDaySchedule(
-    day,
-    counts,
-    positionCounts
-) {
-
-
-    const result = {};
-
-    const usedMembers = [];
-
-
-    const availableMembers =
-        getAvailableMembers(day);
-    const educations =
-    JSON.parse(
-        localStorage.getItem("educations")
-    ) || [];
-const todayEducations =
-    educations.filter(education =>
-        education.days.includes(day)
-    );
-const education =
-    todayEducations[0];
-    
-    const trainee =
-    education?.member;
-
-const trainingPosition =
-    education?.position;
-
-    const positions =
-        sortPositions(
-            availableMembers
-        );
-    
-
-
-
-    positions.forEach(position=>{
-
-
-        const candidates =
-            getCandidates(
-                availableMembers,
-                position,
-                usedMembers
-            );
-        if (
-    education &&
-    position === trainingPosition &&
-    candidates.includes(trainee)
-) {
-           
-
-    result[position] = trainee;
-
-    usedMembers.push(trainee);
-
-    counts[trainee]++;
-
-    positionCounts[trainee][position]++;
-
-    return;
-
-}
-       
-
-
-
-result[position] =
-    pickMember(
-    candidates,
-    counts,
-    positionCounts,
-    position,
-    day,
-    result,
-    usedMembers
-);
-
-
-    });
-
-
-
-    // 2直はDなし
-    if (
-        currentShift === 2
-    ) {
-
-        result.D = "-";
-
-    }
-
-
-
-    return result;
-
-}
-
-
-
-// -------------------------------
-// 週スケジュール作成
-// -------------------------------
-
-function buildSchedule() {
-
-
-    const days = [
-        "月",
-        "火",
-        "水",
-        "木",
-        "金"
-    ];
-
-
-const counts =
-        createCountTable();
-const positionCounts =
-    createPositionCountTable();
-
-
-const schedule =
-        {};
-
-
-
-    days.forEach(day=>{
-
-
-        schedule[day] =
-            createDaySchedule(
-    day,
-    counts,
-    positionCounts
-);
-
-
-    });
-
-
-const score =
-    calculateScore(
-        schedule,
-        positionCounts
-    );
-    return {
-    schedule,
-    counts,
-    positionCounts,
-    score
+const DAYS = ["月", "火", "水", "木", "金"];
+const POSITIONS_BY_SHIFT = {
+  "1": ["A", "B", "C", "D"],
+  "2": ["A", "B", "C"]
 };
 
-
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
+function generateCandidateSchedule(shiftData, positions) {
+  const schedule = {};
+  const tempCount = { ...(shiftData.count || {}) };
+  const tempPosCount = {};
 
+  shiftData.members.forEach(m => {
+    if (tempCount[m] === undefined) tempCount[m] = 0;
+    tempPosCount[m] = { ...(shiftData.posCount?.[m] || {}) };
+    positions.forEach(p => {
+      if (tempPosCount[m][p] === undefined) tempPosCount[m][p] = 0;
+    });
+  });
 
-// -------------------------------
-// 教育担当取得
-// -------------------------------
+  let prevDayAssigned = new Set();
 
-function findTrainer(
-    trainee,
-    counts,
-    used
-) {
+  for (const day of DAYS) {
+    schedule[day] = {};
+    const assignedToday = new Set();
 
-
-    const candidates =
-        members.filter(member=>{
-
-
-            if (
-                member === trainee
-            ) {
-
-                return false;
-
-            }
-
-
-            if (
-                used.includes(member)
-            ) {
-
-                return false;
-
-            }
-
-
-            // 教育できる人
-            return !isTraining(
-                member
-            );
-
-
-        });
-
-
-
-    if (
-        candidates.length === 0
-    ) {
-
-        return "-";
-
-    }
-
-
-
-    candidates.sort((a,b)=>{
-
-
-        return counts[a] - counts[b];
-
-
+    const sortedPositions = [...positions].sort((a, b) => {
+      const countA = shiftData.members.filter(m =>
+        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[a]
+      ).length;
+      const countB = shiftData.members.filter(m =>
+        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[b]
+      ).length;
+      return countA - countB;
     });
 
+    for (const pos of sortedPositions) {
+      const candidates = shiftData.members.filter(m => {
+        const isHoliday = Boolean(shiftData.holidays?.[m]?.[day]);
+        const hasSkill = Boolean(shiftData.skills?.[m]?.[pos]);
+        return !isHoliday && !assignedToday.has(m) && hasSkill;
+      });
 
+      if (candidates.length === 0) {
+        schedule[day][pos] = "";
+        continue;
+      }
 
-    return candidates[0];
+      const shuffled = shuffleArray(candidates);
 
-}
-// -------------------------------
-// 教育情報作成
-// -------------------------------
+      shuffled.sort((a, b) => {
+        const scoreA =
+          (tempCount[a] || 0) * 100 +
+          (tempPosCount[a]?.[pos] || 0) * 35 +
+          (prevDayAssigned.has(a) ? 25 : 0);
 
-function createEducationInfo(
-    schedule,
-    counts
-) {
+        const scoreB =
+          (tempCount[b] || 0) * 100 +
+          (tempPosCount[b]?.[pos] || 0) * 35 +
+          (prevDayAssigned.has(b) ? 25 : 0);
 
-    const education = {};
+        return scoreA - scoreB;
+      });
 
-
-    const educations =
-        JSON.parse(
-            localStorage.getItem(
-                "educations"
-            )
-        ) || [];
-
-
-    Object.keys(schedule)
-    .forEach(day => {
-
-        education[day] = {};
-
-
-        const todayEducations =
-            educations.filter(
-                item =>
-                    item.days &&
-                    item.days.includes(day)
-            );
-
-
-        todayEducations.forEach(
-            setting => {
-
-                const trainee =
-                    setting.member;
-
-                const position =
-                    setting.position;
-
-
-                // 教育設定された人が
-                // 実際にそのポジションにいるか確認
-                if (
-                    !schedule[day] ||
-                    schedule[day][position]
-                        !== trainee
-                ) {
-
-                    return;
-
-                }
-
-
-                const trainer =
-                    findTrainer(
-                        trainee,
-                        counts,
-                        []
-                    );
-
-
-                education[day][position] = {
-
-                    trainee:
-                        trainee,
-
-                    trainer:
-                        trainer
-
-                };
-
-            }
-        );
-
-    });
-
-
-    return education;
-
-}
-// -------------------------------
-// マーク取得
-// -------------------------------
-
-function getEducationMark(
-    education,
-    day,
-    position
-) {
-
-
-    if (
-        !education[day]
-    ) {
-
-        return "";
-
+      const chosen = shuffled[0];
+      schedule[day][pos] = chosen;
+      assignedToday.add(chosen);
+      tempCount[chosen] = (tempCount[chosen] || 0) + 1;
+      tempPosCount[chosen][pos] = (tempPosCount[chosen][pos] || 0) + 1;
     }
 
+    prevDayAssigned = assignedToday;
+  }
 
-
-    if (
-        !education[day][position]
-    ) {
-
-        return "";
-
-    }
-
-
-
-    return "🟠";
-
+  return schedule;
 }
 
+function evaluateSchedule(schedule, shiftData, positions) {
+  let penalty = 0;
+  const weekCount = {};
+  shiftData.members.forEach(m => (weekCount[m] = 0));
 
-// -------------------------------
-// 作成メイン
-// -------------------------------
+  for (let i = 0; i < DAYS.length; i++) {
+    const day = DAYS[i];
+    const prevDay = i > 0 ? DAYS[i - 1] : null;
 
-function createSchedule() {
+    for (const pos of positions) {
+      const person = schedule[day][pos];
+      if (!person) {
+        penalty += 5000;
+        continue;
+      }
+      weekCount[person] = (weekCount[person] || 0) + 1;
 
-    const educations =
-        JSON.parse(
-            localStorage.getItem("educations")
-        ) || [];
-
-
-    let bestData = null;
-
-    let bestScore =
-        Infinity;
-
-
-    for (
-        let i = 0;
-        i < 50;
-        i++
-    ) {
-
-        const data =
-            buildSchedule();
-
-
-        if (
-            data.score < bestScore
-        ) {
-
-            bestScore =
-                data.score;
-
-            bestData =
-                data;
-
+      if (prevDay) {
+        if (schedule[prevDay][pos] === person) {
+          penalty += 40;
         }
-
+        const wasYesterday = positions.some(p => schedule[prevDay][p] === person);
+        if (wasYesterday) {
+          penalty += 15;
+        }
+      }
     }
+  }
 
+  const counts = Object.values(weekCount);
+  if (counts.length > 0) {
+    const maxC = Math.max(...counts);
+    const minC = Math.min(...counts);
+    penalty += (maxC - minC) * 80;
+  }
 
-    const schedule =
-        bestData.schedule;
-
-    const counts =
-        bestData.counts;
-
-    const positionCounts =
-        bestData.positionCounts;
-
-    const score =
-        bestData.score;
-
-
-    console.log(
-        "Best Score:",
-        bestScore
-    );
-
-    console.log(
-        "Selected Score:",
-        score
-    );
-
-
-    currentSchedule = schedule;
-
-currentEducation = {};
-
-renderSchedule(
-    schedule,
-    {}
-);
-
-
-    // -------------------------------
-    // 年休チェックをリセット
-    // -------------------------------
-
-    holidays = {};
-
-    localStorage.setItem(
-        "holidays",
-        JSON.stringify(
-            holidays
-        )
-    );
-
-
-    return schedule;
-
+  return penalty;
 }
-// ===============================
-// Scheduler Engine Version2
-// Part3
-// Render
-// ===============================
 
-
-// -------------------------------
-// 表示作成
-// -------------------------------
-
-function renderSchedule(
-    schedule,
-    education
-) {
-
-    currentSchedule =
-        schedule;
-
-    currentEducation =
-        education;
-
-
-    const whiteboard =
-        document.getElementById(
-            "whiteboard"
-        );
-
-
-    const days = [
-        "月",
-        "火",
-        "水",
-        "木",
-        "金"
-    ];
-
-
-    function createPositionHTML(
-        day,
-        position
-    ) {
-
-        const member =
-            schedule[day][position];
-
-
-        if (
-            member === undefined ||
-            member === "-"
-        ) {
-
-            return `
-                <div class="position-box">
-
-                    <div class="position-title">
-                        ${position}
-                    </div>
-
-                </div>
-            `;
-
-        }
-
-
-        // -------------------------------
-        // 担当者プルダウン
-        // -------------------------------
-
-        const selectableMembers =
-            members.filter(
-                name =>
-                    name !== "伊達"
-            );
-
-
-        let options = "";
-
-
-        selectableMembers.forEach(
-            name => {
-
-                options += `
-                    <option
-                        value="${name}"
-                        ${
-                            name === member
-                            ? "selected"
-                            : ""
-                        }
-                    >
-                        ${name}
-                    </option>
-                `;
-
-            }
-        );
-
-
-        // 伊達が現在の担当の場合
-        if (
-            member === "伊達"
-        ) {
-
-            options = `
-                <option
-                    value="伊達"
-                    selected
-                >
-                    伊達
-                </option>
-            ` + options;
-
-        }
-
-
-        let html = `
-
-            <div class="position-box">
-
-                <div class="position-title">
-                    ${position}
-                </div>
-
-                <div class="member-row">
-
-                    <select
-                        class="member-select"
-                        onchange="
-                            changeMember(
-                                '${day}',
-                                '${position}',
-                                this.value
-                            )
-                        "
-                    >
-
-                        ${options}
-
-                    </select>
-
-        `;
-
-
-        // -------------------------------
-        // 🟠 未習得スキル
-        // -------------------------------
-
-        if (
-            isTraining(member)
-        ) {
-
-            html += `
-
-                    <span
-                        class="training-mark"
-                    >
-                        🟠
-                    </span>
-
-            `;
-
-        }
-
-
-        // -------------------------------
-        // 👨‍🏫 教育設定がある場合だけ
-        // -------------------------------
-
-        if (
-            education &&
-            education[day] &&
-            education[day][position]
-        ) {
-
-            const trainer =
-                education[day][position]
-                .trainer;
-
-
-            let trainerOptions =
-                "";
-
-
-            members.forEach(
-                name => {
-
-                    trainerOptions += `
-                        <option
-                            value="${name}"
-                            ${
-                                name === trainer
-                                ? "selected"
-                                : ""
-                            }
-                        >
-                            ${name}
-                        </option>
-                    `;
-
-                }
-            );
-
-
-            html += `
-
-                    <div
-                        class="education-trainer"
-                    >
-
-                        👨‍🏫
-
-                        <select
-                            class="trainer-select"
-                            onchange="
-                                changeTrainer(
-                                    '${day}',
-                                    '${position}',
-                                    this.value
-                                )
-                            "
-                        >
-
-                            ${trainerOptions}
-
-                        </select>
-
-                    </div>
-
-            `;
-
-        }
-
-
-        html += `
-
-                </div>
-
-            </div>
-
-        `;
-
-
-        return html;
-
+function generateBestSchedule(shiftData, shiftKey) {
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  let bestSchedule = null;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < 50; i++) {
+    const candidate = generateCandidateSchedule(shiftData, positions);
+    const score = evaluateSchedule(candidate, shiftData, positions);
+    if (score < bestScore) {
+      bestScore = score;
+      bestSchedule = candidate;
     }
+  }
 
+  return bestSchedule;
+}
 
-    // -------------------------------
-    // 表全体
-    // -------------------------------
+function hasUnlearnedSkill(member, shiftData, shiftKey) {
+  if (!member) return false;
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  return positions.some(pos => !shiftData.skills?.[member]?.[pos]);
+}
 
-    let html = `
+function renderScheduleBoard(schedule, shiftData, shiftKey, educationMap = {}) {
+  const scheduleArea = document.getElementById("scheduleArea");
+  if (!schedule || Object.keys(schedule).length === 0) {
+    scheduleArea.innerHTML = `<div class="empty-board">「📝 早出表作成」を押してください</div>`;
+    return;
+  }
 
-        <h2>早出表</h2>
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  const leftPositions = positions.filter(p => p === "A" || p === "B");
+  const rightPositions = positions.filter(p => p === "C" || p === "D");
 
-        <p>
-            ${currentShift}直
-        </p>
+  let html = "";
 
-    `;
+  for (const day of DAYS) {
+    html += `<div class="day-block">`;
+    html += `<div class="day-label">${day}曜日</div>`;
+    html += `<div class="pos-grid">`;
 
+    html += `<div class="pos-col">`;
+    for (const pos of leftPositions) {
+      html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, shiftKey, educationMap);
+    }
+    html += `</div>`;
 
-    days.forEach(
-        day => {
+    html += `<div class="pos-col">`;
+    for (const pos of rightPositions) {
+      html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, shiftKey, educationMap);
+    }
+    html += `</div>`;
 
-            html += `
+    html += `</div></div>`;
+  }
 
-                <div class="day-box">
+  scheduleArea.innerHTML = html;
+}
 
-                    <h3>
-                        ${day}
-                    </h3>
+function buildPositionCellHTML(day, pos, assignedPerson, shiftData, shiftKey, educationMap) {
+  const showOrange = hasUnlearnedSkill(assignedPerson, shiftData, shiftKey);
+  const trainer = assignedPerson ? educationMap[assignedPerson] : "";
 
-                    <div class="schedule-grid">
+  let optionsHtml = `<option value="">-- 未定 --</option>`;
+  shiftData.members.forEach(m => {
+    const selected = m === assignedPerson ? "selected" : "";
+    optionsHtml += `<option value="${m}" ${selected}>${m}</option>`;
+  });
 
-                        <div class="left-column">
-
-                            ${createPositionHTML(
-                                day,
-                                "A"
-                            )}
-
-                            ${createPositionHTML(
-                                day,
-                                "B"
-                            )}
-
-                        </div>
-
-
-                        <div class="right-column">
-
-                            ${createPositionHTML(
-                                day,
-                                "C"
-                            )}
-
-                            ${
-                                currentShift === 1
-                                ?
-                                createPositionHTML(
-                                    day,
-                                    "D"
-                                )
-                                :
-                                ""
-                            }
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            `;
-
-        }
-    );
-
-
-    html += `
-
-        <div class="education-legend">
-
-            🟠＝未習得スキルあり
-
-            <br>
-
-            👨‍🏫＝教育設定あり
-
+  return `
+    <div class="pos-cell">
+      <span class="pos-tag">${pos}</span>
+      <div class="cell-content">
+        <div class="person-select-row">
+          ${showOrange ? `<span>🟠</span>` : ""}
+          <select class="board-select" data-day="${day}" data-pos="${pos}">
+            ${optionsHtml}
+          </select>
         </div>
-
-    `;
-
-
-    whiteboard.innerHTML =
-        html;
-
-}
-function changeMember(
-    day,
-    position,
-    member
-) {
-
-    currentSchedule[day][position] = member;
-
-    renderSchedule(
-        currentSchedule,
-        currentEducation
-    );
-
-}
-function changeTrainer(
-    day,
-    position,
-    trainer
-) {
-
-    if (
-        !currentEducation ||
-        !currentEducation[day] ||
-        !currentEducation[day][position]
-    ) {
-
-        return;
-
-    }
-
-
-    currentEducation[day][position].trainer =
-        trainer;
-
-
-    renderSchedule(
-        currentSchedule,
-        currentEducation
-    );
-
+        ${trainer ? `<div class="trainer-badge">👨‍🏫 教育: ${trainer}</div>` : ""}
+      </div>
+    </div>
+  `;
 }
