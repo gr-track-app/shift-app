@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -30,7 +30,8 @@
         <button type="button" class="nav-btn" data-target="panel-skill">⚙️ スキル</button>
       </div>
       <div class="menu-row">
-        <button id="createButton" type="button" class="primary-btn">📝 早出表作成</button>
+        <button id="createButton" type="button" class="primary-btn" style="flex:2;">📝 早出表作成</button>
+        <button id="resetCycleBtn" type="button" class="nav-btn" style="flex:1; font-size:12px;">🔄 リセット<br><span id="cycleText">(0/2回)</span></button>
       </div>
     </div>
   </header>
@@ -195,7 +196,6 @@ function generateBestSchedule(shiftData, shiftKey) {
   }
   return bestSchedule;
 }
-
 function isUnlearnedForPosition(member, pos, shiftData) {
   if (!member || !pos) return false;
   return !shiftData.skills?.[member]?.[pos];
@@ -249,6 +249,7 @@ function buildPositionCellHTML(day, pos, assignedPerson, shiftData, dailyEduMap)
       </div>
     </div>`;
 }
+
 const STORAGE_KEY = "gr_track_manager_data_v1";
 let currentShift = "1";
 let appData = {
@@ -266,6 +267,7 @@ function createEmptyShiftData() {
     savedHolidays: {},
     count: {},
     posCount: {},
+    cycleCount: 0,
     schedule: null,
     dailyEducation: {}
   };
@@ -307,6 +309,7 @@ function normalizeCurrentShiftData() {
   if (!sData.count) sData.count = {};
   if (!sData.posCount) sData.posCount = {};
   if (!sData.dailyEducation) sData.dailyEducation = {};
+  if (sData.cycleCount === undefined) sData.cycleCount = 0;
 
   sData.members.forEach(m => {
     if (!sData.skills[m]) sData.skills[m] = {};
@@ -341,7 +344,7 @@ function setupEventListeners() {
     });
   });
 
-  document.querySelectorAll(".nav-btn").forEach(btn => {
+  document.querySelectorAll(".nav-btn[data-target]").forEach(btn => {
     btn.addEventListener("click", () => {
       const targetId = btn.dataset.target;
       const targetPanel = document.getElementById(targetId);
@@ -369,6 +372,7 @@ function setupEventListeners() {
   });
 
   document.getElementById("createButton").addEventListener("click", handleCreateSchedule);
+  document.getElementById("resetCycleBtn").addEventListener("click", manualResetCycle);
 
   document.getElementById("scheduleArea").addEventListener("change", e => {
     if (e.target.classList.contains("board-select")) {
@@ -416,8 +420,16 @@ function addMember() {
     return;
   }
 
+  let avgCount = 0;
+  if (sData.members.length > 0) {
+    const total = sData.members.reduce((sum, m) => sum + (sData.count[m] || 0), 0);
+    avgCount = Math.round(total / sData.members.length);
+  }
+
   sData.members.push(name);
   normalizeCurrentShiftData();
+  sData.count[name] = avgCount;
+
   saveAppData();
   input.value = "";
   refreshAllViews();
@@ -548,6 +560,17 @@ function handleCreateSchedule() {
     }
   }
 
+  sData.cycleCount = (sData.cycleCount || 0) + 1;
+  if (sData.cycleCount >= 2) {
+    sData.cycleCount = 0;
+    sData.members.forEach(m => {
+      sData.count[m] = 0;
+      positions.forEach(p => {
+        if (sData.posCount[m]) sData.posCount[m][p] = 0;
+      });
+    });
+  }
+
   sData.holidays = {};
   sData.members.forEach(m => {
     sData.holidays[m] = {};
@@ -556,6 +579,21 @@ function handleCreateSchedule() {
   saveAppData();
   closeAllPanels();
   renderHolidayArea();
+  renderBoard();
+}
+
+function manualResetCycle() {
+  if (!confirm("担当回数カウントを0回にリセットしますか？")) return;
+  const sData = appData.shifts[currentShift];
+  const positions = POSITIONS_BY_SHIFT[currentShift];
+  sData.cycleCount = 0;
+  sData.members.forEach(m => {
+    sData.count[m] = 0;
+    positions.forEach(p => {
+      if (sData.posCount[m]) sData.posCount[m][p] = 0;
+    });
+  });
+  saveAppData();
   renderBoard();
 }
 
@@ -656,6 +694,10 @@ function setDailyTrainer(key, trainer) {
 
 function renderBoard() {
   const sData = appData.shifts[currentShift];
+  const c = sData.cycleCount || 0;
+  const cycleEl = document.getElementById("cycleText");
+  if (cycleEl) cycleEl.textContent = `(${c}/2回)`;
+
   renderScheduleBoard(
     sData.schedule,
     sData,
