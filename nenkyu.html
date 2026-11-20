@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>GR 年休・カット0管理</title>
+  <title>GR 年休管理</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
     * {
@@ -12,14 +12,12 @@
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
     }
     body {
-      background-color: #09090b;
-      background-image: radial-gradient(circle at top, #1c1012 0%, #09090b 65%);
+      background: #09090b;
       color: #ffffff;
       padding: 12px;
       padding-bottom: 40px;
     }
     .container { max-width: 600px; margin: 0 auto; }
-    .header { margin-bottom: 14px; }
     .title-row {
       display: flex;
       justify-content: space-between;
@@ -30,13 +28,13 @@
     }
     .title-left { display: flex; align-items: center; gap: 8px; }
     .gr-badge {
-      background: linear-gradient(135deg, #ff1a2c, #b8000e);
+      background: #e60012;
       color: #fff;
       font-weight: 900;
       font-style: italic;
-      padding: 2px 9px;
+      padding: 2px 8px;
       border-radius: 4px;
-      font-size: 15px;
+      font-size: 14px;
     }
     h1 { font-size: 18px; font-weight: 900; }
     .back-btn {
@@ -49,148 +47,126 @@
       font-weight: bold;
       border: 1px solid #444;
     }
-    .shift-switch { display: flex; gap: 8px; margin-bottom: 12px; }
-    .shiftBtn {
-      flex: 1;
-      padding: 10px;
-      font-size: 15px;
-      font-weight: bold;
-      border-radius: 6px;
-      border: 1px solid #2e2e32;
-      background: #141417;
-      color: #888;
-      cursor: pointer;
-    }
-    .shiftBtn.active {
-      background: #ffffff;
-      color: #09090b;
-      border-color: #ffffff;
-    }
     .month-banner {
-      background: #18181c;
-      border: 1px solid #333;
+      background: #16161a;
       border-left: 4px solid #e60012;
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: 6px;
       font-size: 12px;
       color: #ddd;
       margin-bottom: 12px;
-      line-height: 1.5;
+      line-height: 1.4;
     }
-    .member-card {
+    .member-row {
       background: #16161a;
-      border: 1px solid #2e2e34;
+      border: 1px solid #2c2c32;
       border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
     }
-    .card-top {
+    .row-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #26262c;
+      margin-bottom: 8px;
     }
-    .member-name { font-size: 17px; font-weight: 800; }
-    .status-badge {
-      padding: 3px 8px;
+    .name-area { display: flex; align-items: center; gap: 6px; }
+    .shift-tag {
+      font-size: 10px;
+      background: #2a2a30;
+      color: #bbb;
+      padding: 2px 5px;
       border-radius: 4px;
-      font-size: 12px;
+      font-weight: bold;
+    }
+    .member-name { font-size: 16px; font-weight: 800; }
+    .status-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
       font-weight: 800;
     }
     .status-ok { background: #123821; color: #4ade80; border: 1px solid #22c55e; }
     .status-info { background: #1e293b; color: #60a5fa; border: 1px solid #3b82f6; }
     .status-warn { background: #3b2608; color: #fbbf24; border: 1px solid #f59e0b; }
-    .status-danger { background: #3f0d12; color: #ff6b76; border: 1px solid #e60012; animation: pulse 2s infinite; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
-    }
-    .stats-grid {
+    .status-danger { background: #3f0d12; color: #ff6b76; border: 1px solid #e60012; }
+
+    .controls-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 6px;
     }
-    .stat-box {
-      background: #0e0e11;
-      border: 1px solid #2a2a30;
+    .ctrl-box {
+      background: #0d0d10;
+      border: 1px solid #26262c;
       border-radius: 6px;
-      padding: 8px;
-      text-align: center;
-    }
-    .stat-label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
-    .stat-control {
+      padding: 5px 8px;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
     }
+    .ctrl-label { font-size: 11px; color: #999; }
+    .ctrl-btns { display: flex; align-items: center; gap: 6px; }
     .cnt-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 5px;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
       border: 1px solid #444;
       background: #222226;
       color: #fff;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: bold;
     }
-    .stat-val { font-size: 18px; font-weight: 900; min-width: 36px; }
-    .use-btn {
-      width: 100%;
-      margin-top: 8px;
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #444;
-      background: #222226;
-      color: #fff;
-      font-size: 13px;
-      font-weight: bold;
-    }
+    .stat-val { font-size: 15px; font-weight: 900; min-width: 28px; text-align: center; }
   </style>
 </head>
 <body>
 <div class="container">
-  <header class="header">
-    <div class="title-row">
-      <div class="title-left">
-        <span class="gr-badge">GR</span>
-        <h1>年休・カット0管理</h1>
-      </div>
-      <a href="index.html" class="back-btn">← 早出表へ戻る</a>
+  <div class="title-row">
+    <div class="title-left">
+      <span class="gr-badge">GR</span>
+      <h1>年休管理</h1>
     </div>
+    <a href="index.html" class="back-btn">← 早出表へ戻る</a>
+  </div>
 
-    <div class="shift-switch">
-      <button type="button" class="shiftBtn active" data-shift="1">1直</button>
-      <button type="button" class="shiftBtn" data-shift="2">2直</button>
-    </div>
-
-    <div id="monthBanner" class="month-banner"></div>
-  </header>
-
+  <div id="monthBanner" class="month-banner"></div>
   <main id="nenkyuList"></main>
 </div>
 <script>
 const SHIFT_STORAGE_KEY = "gr_track_manager_data_v1";
 const NENKYU_STORAGE_KEY = "gr_nenkyu_cut0_data_v1";
 
-let currentShift = "1";
-let membersByShift = { "1": [], "2": [] };
-let nenkyuData = { "1": {}, "2": {} };
+let allMembers = [];
+let nenkyuData = {};
 
 function loadData() {
   try {
     const rawShift = localStorage.getItem(SHIFT_STORAGE_KEY);
+    const list = [];
+    const seen = new Set();
     if (rawShift) {
       const parsed = JSON.parse(rawShift);
       const s = parsed.shifts || parsed;
-      if (s["1"]?.members) membersByShift["1"] = s["1"].members;
-      if (s["2"]?.members) membersByShift["2"] = s["2"].members;
+      ["1", "2"].forEach(shiftKey => {
+        (s[shiftKey]?.members || []).forEach(name => {
+          if (!seen.has(name)) {
+            seen.add(name);
+            list.push({ name, shift: `${shiftKey}直` });
+          }
+        });
+      });
     }
+    allMembers = list;
+
     const rawNenkyu = localStorage.getItem(NENKYU_STORAGE_KEY);
     if (rawNenkyu) {
-      nenkyuData = { ...nenkyuData, ...JSON.parse(rawNenkyu) };
+      const parsedN = JSON.parse(rawNenkyu);
+      if (parsedN["1"] || parsedN["2"]) {
+        nenkyuData = { ...(parsedN["1"] || {}), ...(parsedN["2"] || {}) };
+      } else {
+        nenkyuData = parsedN;
+      }
     }
   } catch (e) {
     console.error(e);
@@ -201,102 +177,83 @@ function saveData() {
   localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
 }
 
-function getMemberStat(shift, name) {
-  if (!nenkyuData[shift]) nenkyuData[shift] = {};
-  if (!nenkyuData[shift][name]) {
-    // 初期値：残数20日、カット0まであと5日
-    nenkyuData[shift][name] = { remain: 20, cutZeroLeft: 5 };
+function getMemberStat(name) {
+  if (!nenkyuData[name]) {
+    nenkyuData[name] = { remain: 20, cutZeroLeft: 5 };
   }
-  return nenkyuData[shift][name];
+  return nenkyuData[name];
 }
 
 function renderMonthBanner() {
-  const now = new Date();
-  const month = now.getMonth() + 1;
+  const month = new Date().getMonth() + 1;
   const banner = document.getElementById("monthBanner");
-
-  let phaseMsg = "";
   if (month >= 11 || month <= 3) {
-    phaseMsg = `🚨 <b>現在 ${month}月（警報期間）</b>：カット0未達成者は優先的に年休取得が必要です！`;
+    banner.innerHTML = `🚨 <b>${month}月（警報期間）</b>：カット0未達成者は優先取得が必要です`;
   } else if (month >= 9) {
-    phaseMsg = `⚠️ <b>現在 ${month}月（アラート期間）</b>：9月アラート基準です。計画的な消化を促してください。`;
+    banner.innerHTML = `⚠️ <b>${month}月（アラート期間）</b>：9月アラート基準です`;
   } else if (month >= 6) {
-    phaseMsg = `📢 <b>現在 ${month}月（お知らせ期間）</b>：6月確認基準です。残り日数をチェックしましょう。`;
+    banner.innerHTML = `📢 <b>${month}月（お知らせ期間）</b>：6月確認基準です`;
   } else {
-    phaseMsg = `📅 <b>現在 ${month}月</b>：年間スケジュールに沿って計画取得を進めましょう。`;
+    banner.innerHTML = `📅 <b>${month}月</b>：早出表作成の年休チェックと自動連動します`;
   }
-  banner.innerHTML = phaseMsg;
 }
 
 function getStatusBadge(cutZeroLeft) {
-  if (cutZeroLeft <= 0) {
-    return `<span class="status-badge status-ok">🟢 カット0達成✅</span>`;
-  }
+  if (cutZeroLeft <= 0) return `<span class="status-badge status-ok">🟢 カット0達成</span>`;
   const month = new Date().getMonth() + 1;
-  if (month >= 11 || month <= 3) {
-    return `<span class="status-badge status-danger">🚨 11月警報：あと${cutZeroLeft}日</span>`;
-  }
-  if (month >= 9) {
-    return `<span class="status-badge status-warn">⚠️ 9月アラート：あと${cutZeroLeft}日</span>`;
-  }
-  if (month >= 6) {
-    return `<span class="status-badge status-info">📢 6月お知らせ：あと${cutZeroLeft}日</span>`;
-  }
-  return `<span class="status-badge status-info">残り ${cutZeroLeft}日</span>`;
+  if (month >= 11 || month <= 3) return `<span class="status-badge status-danger">🚨 警報：あと${cutZeroLeft}日</span>`;
+  if (month >= 9) return `<span class="status-badge status-warn">⚠️ アラート：あと${cutZeroLeft}日</span>`;
+  return `<span class="status-badge status-info">カット0まで ${cutZeroLeft}日</span>`;
 }
 
 function renderList() {
   const container = document.getElementById("nenkyuList");
-  const members = membersByShift[currentShift] || [];
-
-  if (members.length === 0) {
+  if (allMembers.length === 0) {
     container.innerHTML = `<div class="month-banner">先に早出表アプリでメンバーを登録してください。</div>`;
     return;
   }
 
-  container.innerHTML = members.map(name => {
-    const stat = getMemberStat(currentShift, name);
+  const sorted = [...allMembers].sort((a, b) => {
+    return getMemberStat(b.name).cutZeroLeft - getMemberStat(a.name).cutZeroLeft;
+  });
+
+  container.innerHTML = sorted.map(m => {
+    const stat = getMemberStat(m.name);
     return `
-      <div class="member-card">
-        <div class="card-top">
-          <span class="member-name">${name}</span>
+      <div class="member-row">
+        <div class="row-top">
+          <div class="name-area">
+            <span class="shift-tag">${m.shift}</span>
+            <span class="member-name">${m.name}</span>
+          </div>
           ${getStatusBadge(stat.cutZeroLeft)}
         </div>
-        <div class="stats-grid">
-          <div class="stat-box">
-            <div class="stat-label">現在の年休残数</div>
-            <div class="stat-control">
-              <button type="button" class="cnt-btn" onclick="changeVal('${name}', 'remain', -1)">−</button>
-              <span class="stat-val">${stat.remain}日</span>
-              <button type="button" class="cnt-btn" onclick="changeVal('${name}', 'remain', 1)">＋</button>
+        <div class="controls-row">
+          <div class="ctrl-box">
+            <span class="ctrl-label">残数</span>
+            <div class="ctrl-btns">
+              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'remain', -1)">−</button>
+              <span class="stat-val">${stat.remain}</span>
+              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'remain', 1)">＋</button>
             </div>
           </div>
-          <div class="stat-box">
-            <div class="stat-label">カット0まで残り</div>
-            <div class="stat-control">
-              <button type="button" class="cnt-btn" onclick="changeVal('${name}', 'cutZeroLeft', -1)">−</button>
-              <span class="stat-val">${stat.cutZeroLeft}日</span>
-              <button type="button" class="cnt-btn" onclick="changeVal('${name}', 'cutZeroLeft', 1)">＋</button>
+          <div class="ctrl-box">
+            <span class="ctrl-label">カット0残</span>
+            <div class="ctrl-btns">
+              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'cutZeroLeft', -1)">−</button>
+              <span class="stat-val">${stat.cutZeroLeft}</span>
+              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'cutZeroLeft', 1)">＋</button>
             </div>
           </div>
         </div>
-        <button type="button" class="use-btn" onclick="useOneDay('${name}')">📅 年休を1日消化（両方 −1日）</button>
       </div>
     `;
   }).join("");
 }
 
 function changeVal(name, field, delta) {
-  const stat = getMemberStat(currentShift, name);
+  const stat = getMemberStat(name);
   stat[field] = Math.max(0, stat[field] + delta);
-  saveData();
-  renderList();
-}
-
-function useOneDay(name) {
-  const stat = getMemberStat(currentShift, name);
-  stat.remain = Math.max(0, stat.remain - 1);
-  stat.cutZeroLeft = Math.max(0, stat.cutZeroLeft - 1);
   saveData();
   renderList();
 }
@@ -305,15 +262,6 @@ document.addEventListener("DOMContentLoaded", () => {
   loadData();
   renderMonthBanner();
   renderList();
-
-  document.querySelectorAll(".shiftBtn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".shiftBtn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentShift = btn.dataset.shift;
-      renderList();
-    });
-  });
 });
 </script>
 </body>
