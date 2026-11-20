@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 
@@ -115,6 +115,7 @@ function generateCandidateSchedule(shiftData, positions) {
   });
 
   let prevDayAssigned = new Set();
+  let prevDayPosMap = {};
 
   for (const day of DAYS) {
     schedule[day] = {};
@@ -144,8 +145,18 @@ function generateCandidateSchedule(shiftData, positions) {
 
       const shuffled = shuffleArray(candidates);
       shuffled.sort((a, b) => {
-        const scoreA = (tempCount[a] || 0) * 100 + (tempPosCount[a]?.[pos] || 0) * 35 + (prevDayAssigned.has(a) ? 25 : 0);
-        const scoreB = (tempCount[b] || 0) * 100 + (tempPosCount[b]?.[pos] || 0) * 35 + (prevDayAssigned.has(b) ? 25 : 0);
+        const scoreA =
+          (tempCount[a] || 0) * 100 +
+          (tempPosCount[a]?.[pos] || 0) * 35 +
+          (prevDayPosMap[pos] === a ? 500 : 0) +
+          (prevDayAssigned.has(a) ? 30 : 0);
+
+        const scoreB =
+          (tempCount[b] || 0) * 100 +
+          (tempPosCount[b]?.[pos] || 0) * 35 +
+          (prevDayPosMap[pos] === b ? 500 : 0) +
+          (prevDayAssigned.has(b) ? 30 : 0);
+
         return scoreA - scoreB;
       });
 
@@ -155,7 +166,9 @@ function generateCandidateSchedule(shiftData, positions) {
       tempCount[chosen] = (tempCount[chosen] || 0) + 1;
       tempPosCount[chosen][pos] = (tempPosCount[chosen][pos] || 0) + 1;
     }
+
     prevDayAssigned = assignedToday;
+    prevDayPosMap = { ...schedule[day] };
   }
   return schedule;
 }
@@ -174,8 +187,8 @@ function evaluateSchedule(schedule, shiftData, positions) {
       if (!person) { penalty += 5000; continue; }
       weekCount[person] = (weekCount[person] || 0) + 1;
       if (prevDay) {
-        if (schedule[prevDay][pos] === person) penalty += 40;
-        if (positions.some(p => schedule[prevDay][p] === person)) penalty += 15;
+        if (schedule[prevDay][pos] === person) penalty += 500;
+        if (positions.some(p => schedule[prevDay][p] === person)) penalty += 20;
       }
     }
   }
