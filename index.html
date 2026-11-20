@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -29,10 +29,9 @@
         <button type="button" class="nav-btn" data-target="panel-education">🎓 教育</button>
         <button type="button" class="nav-btn" data-target="panel-skill">⚙️ スキル</button>
       </div>
-            <div class="menu-row">
+      <div class="menu-row">
         <button id="createButton" type="button" class="primary-btn">📝 早出表作成</button>
       </div>
-
     </div>
   </header>
 
@@ -372,7 +371,6 @@ function setupEventListeners() {
   });
 
   document.getElementById("createButton").addEventListener("click", handleCreateSchedule);
-  document.getElementById("resetCycleBtn").addEventListener("click", manualResetCycle);
 
   document.getElementById("scheduleArea").addEventListener("change", e => {
     if (e.target.classList.contains("board-select")) {
@@ -582,21 +580,6 @@ function handleCreateSchedule() {
   renderBoard();
 }
 
-function manualResetCycle() {
-  if (!confirm("担当回数カウントを0回にリセットしますか？")) return;
-  const sData = appData.shifts[currentShift];
-  const positions = POSITIONS_BY_SHIFT[currentShift];
-  sData.cycleCount = 0;
-  sData.members.forEach(m => {
-    sData.count[m] = 0;
-    positions.forEach(p => {
-      if (sData.posCount[m]) sData.posCount[m][p] = 0;
-    });
-  });
-  saveAppData();
-  renderBoard();
-}
-
 function renderEducationPanel() {
   const container = document.getElementById("educationList");
   const sData = appData.shifts[currentShift];
@@ -694,10 +677,6 @@ function setDailyTrainer(key, trainer) {
 
 function renderBoard() {
   const sData = appData.shifts[currentShift];
-  const c = sData.cycleCount || 0;
-  const cycleEl = document.getElementById("cycleText");
-  if (cycleEl) cycleEl.textContent = `(${c}/2回)`;
-
   renderScheduleBoard(
     sData.schedule,
     sData,
