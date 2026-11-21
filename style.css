@@ -432,3 +432,38 @@ body {
 .trainer-badge {
   color: #d90011 !important;
 }
+/* ===== 教育表示時もiPhone画面に収まるコンパクト微調整 ===== */
+.day-label {
+  padding: 4px 10px !important;
+  font-size: 13px !important;
+}
+
+.pos-grid {
+  padding: 5px 6px !important;
+  gap: 4px !important;
+}
+
+.pos-col {
+  gap: 4px !important;
+}
+
+.pos-cell {
+  padding: 4px 7px !important;
+}
+
+.pos-tag {
+  width: 21px !important;
+  height: 21px !important;
+  font-size: 12px !important;
+}
+
+.board-select {
+  font-size: 14px !important;
+  padding: 0 !important;
+}
+
+.trainer-badge {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  margin-top: 1px !important;
+}
