@@ -25,27 +25,34 @@
       margin-bottom: 12px;
       border-bottom: 2px solid #e60012;
       padding-bottom: 8px;
+      gap: 6px;
     }
-    .title-left { display: flex; align-items: center; gap: 8px; }
+    .title-left { display: flex; align-items: center; gap: 6px; }
     .gr-badge {
       background: #e60012;
       color: #fff;
       font-weight: 900;
       font-style: italic;
-      padding: 2px 8px;
+      padding: 2px 7px;
       border-radius: 4px;
-      font-size: 14px;
+      font-size: 13px;
     }
-    h1 { font-size: 18px; font-weight: 900; }
-    .back-btn {
+    h1 { font-size: 17px; font-weight: 900; white-space: nowrap; }
+    .top-btns { display: flex; gap: 6px; }
+    .nav-pill {
       background: #222226;
       color: #fff;
       text-decoration: none;
-      padding: 6px 10px;
+      padding: 6px 9px;
       border-radius: 6px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       border: 1px solid #444;
+      white-space: nowrap;
+    }
+    .nav-pill.active-set {
+      background: #e60012;
+      border-color: #e60012;
     }
     .month-banner {
       background: #16161a;
@@ -61,11 +68,69 @@
       align-items: center;
       gap: 8px;
     }
-    .sync-tag {
+    .sync-tag { font-size: 11px; color: #aaa; white-space: nowrap; }
+
+    /* 設定パネル */
+    .setup-panel {
+      background: #16161a;
+      border: 1px solid #e60012;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .setup-panel.hidden { display: none; }
+    .setup-title {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    .setup-note {
       font-size: 11px;
       color: #aaa;
-      white-space: nowrap;
+      margin-bottom: 10px;
     }
+    .setup-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid #26262c;
+      gap: 6px;
+    }
+    .setup-name { font-size: 14px; font-weight: bold; flex: 1; }
+    .setup-inputs { display: flex; align-items: center; gap: 6px; }
+    .setup-field {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      color: #bbb;
+    }
+    .num-input {
+      width: 52px;
+      background: #09090b;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 5px;
+      padding: 5px 4px;
+      font-size: 14px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .save-setup-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      background: #e60012;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    /* 一覧カード */
     .member-row {
       background: #16161a;
       border: 1px solid #2c2c32;
@@ -163,20 +228,28 @@
       <span class="gr-badge">GR</span>
       <h1>年休管理</h1>
     </div>
-    <a href="index.html" class="back-btn">← 早出表へ戻る</a>
+    <div class="top-btns">
+      <button type="button" id="toggleSetupBtn" class="nav-pill" onclick="toggleSetupPanel()">⚙️ 日数設定</button>
+      <a href="index.html" class="nav-pill">← 早出表</a>
+    </div>
   </div>
 
   <div class="month-banner">
     <div id="monthText"></div>
     <span id="syncTag" class="sync-tag">☁️ 同期中...</span>
   </div>
+
+  <section id="setupPanel" class="setup-panel hidden">
+    <div class="setup-title">⚙️ 個人別 初期日数設定</div>
+    <p class="setup-note">年明けの通知に合わせて、各自の「年休残数」と「カット0残」を入力して保存してください（0.5単位可）</p>
+    <div id="setupList"></div>
+    <button type="button" class="save-setup-btn" onclick="saveSetupValues()">この内容で保存する</button>
+  </section>
+
   <main id="nenkyuList"></main>
 </div>
 <script>
-const DB_BASE_URL = "https://" + "gr-track-app-default-rtdb.firebaseio.com";
-
-
-
+const DB_BASE_URL = "https://" + "://firebaseio.com";
 const SHIFT_STORAGE_KEY = "gr_track_manager_data_v1";
 const NENKYU_STORAGE_KEY = "gr_nenkyu_cut0_data_v1";
 
@@ -191,7 +264,6 @@ function setSyncTag(text) {
 async function loadData() {
   setSyncTag("☁️ 読込中...");
   try {
-    // 1. クラウドからメンバー一覧を取得
     const shiftRes = await fetch(`${DB_BASE_URL}/shiftData.json`);
     const cloudShift = await shiftRes.json();
     const sourceShift = cloudShift?.shifts || JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEY) || "{}")?.shifts || {};
@@ -208,7 +280,6 @@ async function loadData() {
     });
     allMembers = list;
 
-    // 2. クラウドから年休データを取得
     const nenkyuRes = await fetch(`${DB_BASE_URL}/nenkyuData.json`);
     const cloudNenkyu = await nenkyuRes.json();
     if (cloudNenkyu) {
@@ -256,6 +327,58 @@ function getMemberStat(name) {
     nenkyuData[name] = { remain: 20, cutZeroLeft: 5 };
   }
   return nenkyuData[name];
+}
+
+function toggleSetupPanel() {
+  const panel = document.getElementById("setupPanel");
+  const btn = document.getElementById("toggleSetupBtn");
+  const isHidden = panel.classList.contains("hidden");
+  if (isHidden) {
+    renderSetupList();
+    panel.classList.remove("hidden");
+    btn.classList.add("active-set");
+  } else {
+    panel.classList.add("hidden");
+    btn.classList.remove("active-set");
+  }
+}
+
+function renderSetupList() {
+  const container = document.getElementById("setupList");
+  if (allMembers.length === 0) {
+    container.innerHTML = `<p class="setup-note">メンバーが登録されていません</p>`;
+    return;
+  }
+  container.innerHTML = allMembers.map((name, idx) => {
+    const stat = getMemberStat(name);
+    return `
+      <div class="setup-row">
+        <span class="setup-name">${name}</span>
+        <div class="setup-inputs">
+          <label class="setup-field">残<input type="number" step="0.5" min="0" id="set_rem_${idx}" class="num-input" value="${stat.remain}"></label>
+          <label class="setup-field">カット0<input type="number" step="0.5" min="0" id="set_cut_${idx}" class="num-input" value="${stat.cutZeroLeft}"></label>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function saveSetupValues() {
+  allMembers.forEach((name, idx) => {
+    const remEl = document.getElementById(`set_rem_${idx}`);
+    const cutEl = document.getElementById(`set_cut_${idx}`);
+    if (remEl && cutEl) {
+      const remVal = Math.max(0, parseFloat(remEl.value) || 0);
+      const cutVal = Math.max(0, parseFloat(cutEl.value) || 0);
+      nenkyuData[name] = {
+        remain: Math.round(remVal * 10) / 10,
+        cutZeroLeft: Math.round(cutVal * 10) / 10
+      };
+    }
+  });
+  await saveData();
+  toggleSetupPanel();
+  renderList();
 }
 
 function renderMonthBanner() {
