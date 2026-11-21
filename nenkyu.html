@@ -86,7 +86,7 @@
 
     .controls-row {
       display: grid;
-      grid-template-columns: 0.8fr 1.2fr;
+      grid-template-columns: 1.2fr 0.8fr;
       gap: 8px;
     }
     .stat-box {
@@ -110,6 +110,7 @@
       font-weight: 900;
       color: #ffffff;
       line-height: 1.1;
+      white-space: nowrap;
     }
     .remain-unit {
       font-size: 12px;
@@ -255,15 +256,15 @@ function renderList() {
         <div class="controls-row">
           <div class="stat-box">
             <span class="ctrl-label">年休残数</span>
-            <div><span class="remain-val">${stat.remain}</span><span class="remain-unit">日</span></div>
+            <div class="ctrl-btns">
+              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', -0.5)">−0.5</button>
+              <div><span class="remain-val">${stat.remain}</span><span class="remain-unit">日</span></div>
+              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', 0.5)">＋0.5</button>
+            </div>
           </div>
           <div class="stat-box">
             <span class="ctrl-label">カット0まで残り</span>
-            <div class="ctrl-btns">
-              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', -0.5)">−0.5</button>
-              <div><span class="cut-val ${cutClass}">${stat.cutZeroLeft}</span><span class="remain-unit">日</span></div>
-              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', 0.5)">＋0.5</button>
-            </div>
+            <div><span class="cut-val ${cutClass}">${stat.cutZeroLeft}</span><span class="remain-unit">日</span></div>
           </div>
         </div>
       </div>
