@@ -70,7 +70,6 @@
     }
     .sync-tag { font-size: 11px; color: #aaa; white-space: nowrap; }
 
-    /* 設定パネル */
     .setup-panel {
       background: #16161a;
       border: 1px solid #e60012;
@@ -79,17 +78,8 @@
       margin-bottom: 14px;
     }
     .setup-panel.hidden { display: none; }
-    .setup-title {
-      font-size: 14px;
-      font-weight: 800;
-      margin-bottom: 4px;
-      color: #fff;
-    }
-    .setup-note {
-      font-size: 11px;
-      color: #aaa;
-      margin-bottom: 10px;
-    }
+    .setup-title { font-size: 14px; font-weight: 800; margin-bottom: 4px; color: #fff; }
+    .setup-note { font-size: 11px; color: #aaa; margin-bottom: 10px; }
     .setup-row {
       display: flex;
       justify-content: space-between;
@@ -100,13 +90,7 @@
     }
     .setup-name { font-size: 14px; font-weight: bold; flex: 1; }
     .setup-inputs { display: flex; align-items: center; gap: 6px; }
-    .setup-field {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 11px;
-      color: #bbb;
-    }
+    .setup-field { display: flex; align-items: center; gap: 3px; font-size: 11px; color: #bbb; }
     .num-input {
       width: 52px;
       background: #09090b;
@@ -130,7 +114,6 @@
       font-weight: 800;
     }
 
-    /* 一覧カード */
     .member-row {
       background: #16161a;
       border: 1px solid #2c2c32;
@@ -173,32 +156,10 @@
       justify-content: center;
       align-items: center;
     }
-    .ctrl-label {
-      font-size: 11px;
-      color: #999;
-      margin-bottom: 3px;
-      white-space: nowrap;
-    }
-    .remain-val {
-      font-size: 22px;
-      font-weight: 900;
-      color: #ffffff;
-      line-height: 1.1;
-      white-space: nowrap;
-    }
-    .remain-unit {
-      font-size: 12px;
-      font-weight: bold;
-      color: #aaa;
-      margin-left: 2px;
-    }
-    .ctrl-btns {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      gap: 6px;
-    }
+    .ctrl-label { font-size: 11px; color: #999; margin-bottom: 3px; white-space: nowrap; }
+    .remain-val { font-size: 22px; font-weight: 900; color: #ffffff; line-height: 1.1; white-space: nowrap; }
+    .remain-unit { font-size: 12px; font-weight: bold; color: #aaa; margin-left: 2px; }
+    .ctrl-btns { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 6px; }
     .cnt-btn {
       padding: 0 10px;
       height: 30px;
@@ -210,13 +171,7 @@
       font-weight: bold;
       white-space: nowrap;
     }
-    .cut-val {
-      font-size: 22px;
-      font-weight: 900;
-      text-align: center;
-      white-space: nowrap;
-      line-height: 1.1;
-    }
+    .cut-val { font-size: 22px; font-weight: 900; text-align: center; white-space: nowrap; line-height: 1.1; }
     .cut-val.pending { color: #ff4d5a; }
     .cut-val.done { color: #4ade80; }
   </style>
@@ -249,12 +204,14 @@
   <main id="nenkyuList"></main>
 </div>
 <script>
-const DB_BASE_URL = "https://" + "gr-track-app-default-rtdb.firebaseio.com";
+const DB_BASE_URL = "https://" + "://firebaseio.com";
 const SHIFT_STORAGE_KEY = "gr_track_manager_data_v1";
 const NENKYU_STORAGE_KEY = "gr_nenkyu_cut0_data_v1";
 
 let allMembers = [];
 let nenkyuData = {};
+let isSaving = false;
+let pendingSave = false;
 
 function setSyncTag(text) {
   const el = document.getElementById("syncTag");
@@ -264,7 +221,7 @@ function setSyncTag(text) {
 async function loadData() {
   setSyncTag("☁️ 読込中...");
   try {
-    const shiftRes = await fetch(`${DB_BASE_URL}/shiftData.json`);
+    const shiftRes = await fetch(`${DB_BASE_URL}/shiftData.json?t=${Date.now()}`);
     const cloudShift = await shiftRes.json();
     const sourceShift = cloudShift?.shifts || JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEY) || "{}")?.shifts || {};
 
@@ -280,7 +237,7 @@ async function loadData() {
     });
     allMembers = list;
 
-    const nenkyuRes = await fetch(`${DB_BASE_URL}/nenkyuData.json`);
+    const nenkyuRes = await fetch(`${DB_BASE_URL}/nenkyuData.json?t=${Date.now()}`);
     const cloudNenkyu = await nenkyuRes.json();
     if (cloudNenkyu) {
       nenkyuData = cloudNenkyu;
@@ -289,10 +246,7 @@ async function loadData() {
     } else {
       const localRaw = localStorage.getItem(NENKYU_STORAGE_KEY);
       if (localRaw) {
-        const parsedN = JSON.parse(localRaw);
-        nenkyuData = (parsedN["1"] || parsedN["2"])
-          ? { ...(parsedN["1"] || {}), ...(parsedN["2"] || {}) }
-          : parsedN;
+        nenkyuData = JSON.parse(localRaw);
         await saveData();
       } else {
         setSyncTag("☁️ 同期完了");
@@ -306,19 +260,32 @@ async function loadData() {
   }
 }
 
+// 連打しても保存の順番が崩れないキュー保存処理
 async function saveData() {
   localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
+  if (isSaving) {
+    pendingSave = true;
+    return;
+  }
+  isSaving = true;
   setSyncTag("☁️ 保存中...");
+
   try {
-    await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nenkyuData)
-    });
+    do {
+      pendingSave = false;
+      const snapshot = JSON.stringify(nenkyuData);
+      await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: snapshot
+      });
+    } while (pendingSave);
     setSyncTag("☁️ 同期完了");
   } catch (e) {
     console.error("クラウド保存エラー:", e);
     setSyncTag("⚠️ 保存失敗");
+  } finally {
+    isSaving = false;
   }
 }
 
@@ -403,6 +370,7 @@ function getStatusBadge(cutZeroLeft) {
   return `<span class="status-badge status-info">カット0まで ${cutZeroLeft}日</span>`;
 }
 
+// 順番を勝手に並び替えず、メンバー登録順のまま固定表示
 function renderList() {
   const container = document.getElementById("nenkyuList");
   if (allMembers.length === 0) {
@@ -410,11 +378,7 @@ function renderList() {
     return;
   }
 
-  const sorted = [...allMembers].sort((a, b) => {
-    return getMemberStat(b).cutZeroLeft - getMemberStat(a).cutZeroLeft;
-  });
-
-  container.innerHTML = sorted.map(name => {
+  container.innerHTML = allMembers.map(name => {
     const stat = getMemberStat(name);
     const cutClass = stat.cutZeroLeft <= 0 ? "done" : "pending";
     return `
@@ -446,8 +410,8 @@ function changeBoth(name, delta) {
   const stat = getMemberStat(name);
   stat.remain = Math.max(0, Math.round((stat.remain + delta) * 10) / 10);
   stat.cutZeroLeft = Math.max(0, Math.round((stat.cutZeroLeft + delta) * 10) / 10);
-  saveData();
   renderList();
+  saveData();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
