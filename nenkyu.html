@@ -56,6 +56,15 @@
       color: #ddd;
       margin-bottom: 12px;
       line-height: 1.4;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .sync-tag {
+      font-size: 11px;
+      color: #aaa;
+      white-space: nowrap;
     }
     .member-row {
       background: #16161a;
@@ -157,51 +166,86 @@
     <a href="index.html" class="back-btn">← 早出表へ戻る</a>
   </div>
 
-  <div id="monthBanner" class="month-banner"></div>
+  <div class="month-banner">
+    <div id="monthText"></div>
+    <span id="syncTag" class="sync-tag">☁️ 同期中...</span>
+  </div>
   <main id="nenkyuList"></main>
 </div>
 <script>
+const DB_BASE_URL = "https://firebaseio.com";
 const SHIFT_STORAGE_KEY = "gr_track_manager_data_v1";
 const NENKYU_STORAGE_KEY = "gr_nenkyu_cut0_data_v1";
 
 let allMembers = [];
 let nenkyuData = {};
 
-function loadData() {
+function setSyncTag(text) {
+  const el = document.getElementById("syncTag");
+  if (el) el.textContent = text;
+}
+
+async function loadData() {
+  setSyncTag("☁️ 読込中...");
   try {
-    const rawShift = localStorage.getItem(SHIFT_STORAGE_KEY);
+    // 1. クラウドからメンバー一覧を取得
+    const shiftRes = await fetch(`${DB_BASE_URL}/shiftData.json`);
+    const cloudShift = await shiftRes.json();
+    const sourceShift = cloudShift?.shifts || JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEY) || "{}")?.shifts || {};
+
     const list = [];
     const seen = new Set();
-    if (rawShift) {
-      const parsed = JSON.parse(rawShift);
-      const s = parsed.shifts || parsed;
-      ["1", "2"].forEach(shiftKey => {
-        (s[shiftKey]?.members || []).forEach(name => {
-          if (!seen.has(name)) {
-            seen.add(name);
-            list.push(name);
-          }
-        });
+    ["1", "2"].forEach(shiftKey => {
+      (sourceShift[shiftKey]?.members || []).forEach(name => {
+        if (!seen.has(name)) {
+          seen.add(name);
+          list.push(name);
+        }
       });
-    }
+    });
     allMembers = list;
 
-    const rawNenkyu = localStorage.getItem(NENKYU_STORAGE_KEY);
-    if (rawNenkyu) {
-      const parsedN = JSON.parse(rawNenkyu);
-      if (parsedN["1"] || parsedN["2"]) {
-        nenkyuData = { ...(parsedN["1"] || {}), ...(parsedN["2"] || {}) };
+    // 2. クラウドから年休データを取得
+    const nenkyuRes = await fetch(`${DB_BASE_URL}/nenkyuData.json`);
+    const cloudNenkyu = await nenkyuRes.json();
+    if (cloudNenkyu) {
+      nenkyuData = cloudNenkyu;
+      localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
+      setSyncTag("☁️ 同期完了");
+    } else {
+      const localRaw = localStorage.getItem(NENKYU_STORAGE_KEY);
+      if (localRaw) {
+        const parsedN = JSON.parse(localRaw);
+        nenkyuData = (parsedN["1"] || parsedN["2"])
+          ? { ...(parsedN["1"] || {}), ...(parsedN["2"] || {}) }
+          : parsedN;
+        await saveData();
       } else {
-        nenkyuData = parsedN;
+        setSyncTag("☁️ 同期完了");
       }
     }
   } catch (e) {
-    console.error(e);
+    console.error("クラウド読込エラー:", e);
+    const localRaw = localStorage.getItem(NENKYU_STORAGE_KEY);
+    if (localRaw) nenkyuData = JSON.parse(localRaw);
+    setSyncTag("⚠️ オフライン");
   }
 }
 
-function saveData() {
+async function saveData() {
   localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
+  setSyncTag("☁️ 保存中...");
+  try {
+    await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nenkyuData)
+    });
+    setSyncTag("☁️ 同期完了");
+  } catch (e) {
+    console.error("クラウド保存エラー:", e);
+    setSyncTag("⚠️ 保存失敗");
+  }
 }
 
 function getMemberStat(name) {
@@ -213,15 +257,15 @@ function getMemberStat(name) {
 
 function renderMonthBanner() {
   const month = new Date().getMonth() + 1;
-  const banner = document.getElementById("monthBanner");
+  const textEl = document.getElementById("monthText");
   if (month >= 11 || month <= 3) {
-    banner.innerHTML = `🚨 <b>${month}月（警報期間）</b>：カット0未達成者は優先取得が必要です`;
+    textEl.innerHTML = `🚨 <b>${month}月（警報期間）</b>：カット0未達成者は優先取得が必要です`;
   } else if (month >= 9) {
-    banner.innerHTML = `⚠️ <b>${month}月（アラート期間）</b>：9月アラート基準です`;
+    textEl.innerHTML = `⚠️ <b>${month}月（アラート期間）</b>：9月アラート基準です`;
   } else if (month >= 6) {
-    banner.innerHTML = `📢 <b>${month}月（お知らせ期間）</b>：6月確認基準です`;
+    textEl.innerHTML = `📢 <b>${month}月（お知らせ期間）</b>：6月確認基準です`;
   } else {
-    banner.innerHTML = `📅 <b>${month}月</b>：早出表作成の年休チェックと自動連動します`;
+    textEl.innerHTML = `📅 <b>${month}月</b>：早出表の年休と自動連動します`;
   }
 }
 
@@ -280,9 +324,9 @@ function changeBoth(name, delta) {
   renderList();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadData();
+document.addEventListener("DOMContentLoaded", async () => {
   renderMonthBanner();
+  await loadData();
   renderList();
 });
 </script>
