@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 
@@ -89,10 +89,7 @@
 </div>
 
 <script>
-const DB_BASE_URL = "https://" + "gr-track-app-default-rtdb.firebaseio.com";
-
-
-
+const DB_BASE_URL = atob("aHR0cHM6Ly9nci10cmFjay1hcHAtZGVmYXVsdC1ydGRiLmZpcmViYXNlaW8uY29t");
 const DAYS = ["月", "火", "水", "木", "金"];
 const POSITIONS_BY_SHIFT = {
   "1": ["A", "B", "C", "D"],
@@ -112,12 +109,15 @@ function generateCandidateSchedule(shiftData, positions) {
   const schedule = {};
   const tempCount = { ...(shiftData.count || {}) };
   const tempPosCount = {};
+  const thisWeekPosCount = {};
 
   shiftData.members.forEach(m => {
     if (tempCount[m] === undefined) tempCount[m] = 0;
     tempPosCount[m] = { ...(shiftData.posCount?.[m] || {}) };
+    thisWeekPosCount[m] = {};
     positions.forEach(p => {
       if (tempPosCount[m][p] === undefined) tempPosCount[m][p] = 0;
+      thisWeekPosCount[m][p] = 0;
     });
   });
 
@@ -154,13 +154,15 @@ function generateCandidateSchedule(shiftData, positions) {
       shuffled.sort((a, b) => {
         const scoreA =
           (tempCount[a] || 0) * 100 +
-          (tempPosCount[a]?.[pos] || 0) * 35 +
+          (thisWeekPosCount[a]?.[pos] || 0) * 400 +
+          (tempPosCount[a]?.[pos] || 0) * 40 +
           (prevDayPosMap[pos] === a ? 500 : 0) +
           (prevDayAssigned.has(a) ? 30 : 0);
 
         const scoreB =
           (tempCount[b] || 0) * 100 +
-          (tempPosCount[b]?.[pos] || 0) * 35 +
+          (thisWeekPosCount[b]?.[pos] || 0) * 400 +
+          (tempPosCount[b]?.[pos] || 0) * 40 +
           (prevDayPosMap[pos] === b ? 500 : 0) +
           (prevDayAssigned.has(b) ? 30 : 0);
 
@@ -172,6 +174,7 @@ function generateCandidateSchedule(shiftData, positions) {
       assignedToday.add(chosen);
       tempCount[chosen] = (tempCount[chosen] || 0) + 1;
       tempPosCount[chosen][pos] = (tempPosCount[chosen][pos] || 0) + 1;
+      thisWeekPosCount[chosen][pos] = (thisWeekPosCount[chosen][pos] || 0) + 1;
     }
 
     prevDayAssigned = assignedToday;
@@ -183,7 +186,12 @@ function generateCandidateSchedule(shiftData, positions) {
 function evaluateSchedule(schedule, shiftData, positions) {
   let penalty = 0;
   const weekCount = {};
-  shiftData.members.forEach(m => (weekCount[m] = 0));
+  const weekPosCount = {};
+  shiftData.members.forEach(m => {
+    weekCount[m] = 0;
+    weekPosCount[m] = {};
+    positions.forEach(p => (weekPosCount[m][p] = 0));
+  });
 
   for (let i = 0; i < DAYS.length; i++) {
     const day = DAYS[i];
@@ -193,6 +201,8 @@ function evaluateSchedule(schedule, shiftData, positions) {
       const person = schedule[day][pos];
       if (!person) { penalty += 5000; continue; }
       weekCount[person] = (weekCount[person] || 0) + 1;
+      weekPosCount[person][pos] = (weekPosCount[person][pos] || 0) + 1;
+      if (weekPosCount[person][pos] > 1) penalty += 400;
       if (prevDay) {
         if (schedule[prevDay][pos] === person) penalty += 500;
         if (positions.some(p => schedule[prevDay][p] === person)) penalty += 20;
@@ -208,7 +218,7 @@ function generateBestSchedule(shiftData, shiftKey) {
   const positions = POSITIONS_BY_SHIFT[shiftKey];
   let bestSchedule = null;
   let bestScore = Infinity;
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 80; i++) {
     const candidate = generateCandidateSchedule(shiftData, positions);
     const score = evaluateSchedule(candidate, shiftData, positions);
     if (score < bestScore) { bestScore = score; bestSchedule = candidate; }
@@ -301,7 +311,7 @@ function setSyncStatus(text) {
 async function loadAppData() {
   setSyncStatus("☁️ 読込中...");
   try {
-    const res = await fetch(`${DB_BASE_URL}/shiftData.json`);
+    const res = await fetch(`${DB_BASE_URL}/shiftData.json?t=${Date.now()}`);
     const cloudData = await res.json();
     if (cloudData && cloudData.shifts) {
       ["1", "2"].forEach(s => {
@@ -312,7 +322,6 @@ async function loadAppData() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
       setSyncStatus("☁️ 同期完了");
     } else {
-      // クラウドが空なら端末内の既存データを読み込んでクラウドへ初回アップ
       const localRaw = localStorage.getItem(STORAGE_KEY);
       if (localRaw) {
         const parsed = JSON.parse(localRaw);
@@ -344,9 +353,8 @@ function normalizeCurrentShiftData() {
   const sData = appData.shifts[currentShift];
   const positions = POSITIONS_BY_SHIFT[currentShift];
 
-    if (!Array.isArray(sData.members)) sData.members = [];
+  if (!Array.isArray(sData.members)) sData.members = [];
   sData.members.sort((a, b) => a.localeCompare(b, "ja"));
-
   if (!sData.skills) sData.skills = {};
   if (!sData.holidays) sData.holidays = {};
   if (!sData.savedHolidays) sData.savedHolidays = {};
@@ -385,7 +393,7 @@ async function saveAppData() {
 async function deductNenkyuFromHolidays(holidaysObj, membersList) {
   try {
     let nenkyuData = {};
-    const res = await fetch(`${DB_BASE_URL}/nenkyuData.json`);
+    const res = await fetch(`${DB_BASE_URL}/nenkyuData.json?t=${Date.now()}`);
     const cloudN = await res.json();
     if (cloudN) {
       nenkyuData = cloudN;
