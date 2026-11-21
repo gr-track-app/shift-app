@@ -60,8 +60,8 @@
     .member-row {
       background: #16161a;
       border: 1px solid #2c2c32;
-      border-radius: 8px;
-      padding: 10px;
+      border-radius: 10px;
+      padding: 10px 12px;
       margin-bottom: 8px;
     }
     .row-top {
@@ -69,8 +69,10 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #242429;
     }
-    .member-name { font-size: 16px; font-weight: 800; }
+    .member-name { font-size: 17px; font-weight: 800; }
     .status-badge {
       padding: 2px 8px;
       border-radius: 4px;
@@ -84,47 +86,64 @@
 
     .controls-row {
       display: grid;
-      grid-template-columns: 1fr 1.15fr;
-      gap: 6px;
+      grid-template-columns: 0.8fr 1.2fr;
+      gap: 8px;
     }
-    .ctrl-box {
+    .stat-box {
       background: #0d0d10;
       border: 1px solid #26262c;
-      border-radius: 6px;
-      padding: 5px 6px;
+      border-radius: 8px;
+      padding: 6px 10px;
       display: flex;
-      justify-content: space-between;
+      flex-direction: column;
+      justify-content: center;
       align-items: center;
-      gap: 4px;
     }
     .ctrl-label {
-      font-size: 10px;
+      font-size: 11px;
       color: #999;
+      margin-bottom: 3px;
       white-space: nowrap;
+    }
+    .remain-val {
+      font-size: 22px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+    }
+    .remain-unit {
+      font-size: 12px;
+      font-weight: bold;
+      color: #aaa;
+      margin-left: 2px;
     }
     .ctrl-btns {
       display: flex;
       align-items: center;
-      gap: 4px;
+      justify-content: space-between;
+      width: 100%;
+      gap: 6px;
     }
     .cnt-btn {
-      padding: 0 5px;
-      height: 24px;
-      border-radius: 4px;
+      padding: 0 10px;
+      height: 30px;
+      border-radius: 6px;
       border: 1px solid #444;
-      background: #222226;
+      background: #242429;
       color: #fff;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: bold;
       white-space: nowrap;
     }
-    .stat-val {
-      font-size: 14px;
+    .cut-val {
+      font-size: 22px;
       font-weight: 900;
-      min-width: 28px;
       text-align: center;
       white-space: nowrap;
+      line-height: 1.1;
     }
+    .cut-val.pending { color: #ff4d5a; }
+    .cut-val.done { color: #4ade80; }
   </style>
 </head>
 <body>
@@ -226,6 +245,7 @@ function renderList() {
 
   container.innerHTML = sorted.map(name => {
     const stat = getMemberStat(name);
+    const cutClass = stat.cutZeroLeft <= 0 ? "done" : "pending";
     return `
       <div class="member-row">
         <div class="row-top">
@@ -233,19 +253,15 @@ function renderList() {
           ${getStatusBadge(stat.cutZeroLeft)}
         </div>
         <div class="controls-row">
-          <div class="ctrl-box">
-            <span class="ctrl-label">残数</span>
-            <div class="ctrl-btns">
-              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', -0.5)">−0.5</button>
-              <span class="stat-val">${stat.remain}</span>
-              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', 0.5)">＋0.5</button>
-            </div>
+          <div class="stat-box">
+            <span class="ctrl-label">年休残数</span>
+            <div><span class="remain-val">${stat.remain}</span><span class="remain-unit">日</span></div>
           </div>
-          <div class="ctrl-box">
-            <span class="ctrl-label">カット0残</span>
+          <div class="stat-box">
+            <span class="ctrl-label">カット0まで残り</span>
             <div class="ctrl-btns">
               <button type="button" class="cnt-btn" onclick="changeBoth('${name}', -0.5)">−0.5</button>
-              <span class="stat-val">${stat.cutZeroLeft}</span>
+              <div><span class="cut-val ${cutClass}">${stat.cutZeroLeft}</span><span class="remain-unit">日</span></div>
               <button type="button" class="cnt-btn" onclick="changeBoth('${name}', 0.5)">＋0.5</button>
             </div>
           </div>
