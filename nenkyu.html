@@ -235,7 +235,8 @@ async function loadData() {
         }
       });
     });
-    allMembers = list;
+        allMembers = list.sort((a, b) => a.localeCompare(b, "ja"));
+
 
     const nenkyuRes = await fetch(`${DB_BASE_URL}/nenkyuData.json?t=${Date.now()}`);
     const cloudNenkyu = await nenkyuRes.json();
