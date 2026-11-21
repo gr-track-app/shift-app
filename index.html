@@ -344,7 +344,9 @@ function normalizeCurrentShiftData() {
   const sData = appData.shifts[currentShift];
   const positions = POSITIONS_BY_SHIFT[currentShift];
 
-  if (!Array.isArray(sData.members)) sData.members = [];
+    if (!Array.isArray(sData.members)) sData.members = [];
+  sData.members.sort((a, b) => a.localeCompare(b, "ja"));
+
   if (!sData.skills) sData.skills = {};
   if (!sData.holidays) sData.holidays = {};
   if (!sData.savedHolidays) sData.savedHolidays = {};
