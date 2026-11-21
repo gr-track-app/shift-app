@@ -70,15 +70,6 @@
       align-items: center;
       margin-bottom: 8px;
     }
-    .name-area { display: flex; align-items: center; gap: 6px; }
-    .shift-tag {
-      font-size: 10px;
-      background: #2a2a30;
-      color: #bbb;
-      padding: 2px 5px;
-      border-radius: 4px;
-      font-weight: bold;
-    }
     .member-name { font-size: 16px; font-weight: 800; }
     .status-badge {
       padding: 2px 8px;
@@ -100,24 +91,24 @@
       background: #0d0d10;
       border: 1px solid #26262c;
       border-radius: 6px;
-      padding: 5px 8px;
+      padding: 5px 7px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .ctrl-label { font-size: 11px; color: #999; }
-    .ctrl-btns { display: flex; align-items: center; gap: 6px; }
+    .ctrl-btns { display: flex; align-items: center; gap: 5px; }
     .cnt-btn {
-      width: 24px;
+      padding: 0 6px;
       height: 24px;
       border-radius: 4px;
       border: 1px solid #444;
       background: #222226;
       color: #fff;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: bold;
     }
-    .stat-val { font-size: 15px; font-weight: 900; min-width: 28px; text-align: center; }
+    .stat-val { font-size: 14px; font-weight: 900; min-width: 30px; text-align: center; }
   </style>
 </head>
 <body>
@@ -152,7 +143,7 @@ function loadData() {
         (s[shiftKey]?.members || []).forEach(name => {
           if (!seen.has(name)) {
             seen.add(name);
-            list.push({ name, shift: `${shiftKey}直` });
+            list.push(name);
           }
         });
       });
@@ -214,35 +205,32 @@ function renderList() {
   }
 
   const sorted = [...allMembers].sort((a, b) => {
-    return getMemberStat(b.name).cutZeroLeft - getMemberStat(a.name).cutZeroLeft;
+    return getMemberStat(b).cutZeroLeft - getMemberStat(a).cutZeroLeft;
   });
 
-  container.innerHTML = sorted.map(m => {
-    const stat = getMemberStat(m.name);
+  container.innerHTML = sorted.map(name => {
+    const stat = getMemberStat(name);
     return `
       <div class="member-row">
         <div class="row-top">
-          <div class="name-area">
-            <span class="shift-tag">${m.shift}</span>
-            <span class="member-name">${m.name}</span>
-          </div>
+          <span class="member-name">${name}</span>
           ${getStatusBadge(stat.cutZeroLeft)}
         </div>
         <div class="controls-row">
           <div class="ctrl-box">
             <span class="ctrl-label">残数</span>
             <div class="ctrl-btns">
-              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'remain', -1)">−</button>
+              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', -0.5)">−0.5</button>
               <span class="stat-val">${stat.remain}</span>
-              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'remain', 1)">＋</button>
+              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', 0.5)">＋0.5</button>
             </div>
           </div>
           <div class="ctrl-box">
             <span class="ctrl-label">カット0残</span>
             <div class="ctrl-btns">
-              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'cutZeroLeft', -1)">−</button>
+              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', -0.5)">−0.5</button>
               <span class="stat-val">${stat.cutZeroLeft}</span>
-              <button type="button" class="cnt-btn" onclick="changeVal('${m.name}', 'cutZeroLeft', 1)">＋</button>
+              <button type="button" class="cnt-btn" onclick="changeBoth('${name}', 0.5)">＋0.5</button>
             </div>
           </div>
         </div>
@@ -251,9 +239,11 @@ function renderList() {
   }).join("");
 }
 
-function changeVal(name, field, delta) {
+// 残数・カット0残の両方を同時に0.5単位で連動増減
+function changeBoth(name, delta) {
   const stat = getMemberStat(name);
-  stat[field] = Math.max(0, stat[field] + delta);
+  stat.remain = Math.max(0, Math.round((stat.remain + delta) * 10) / 10);
+  stat.cutZeroLeft = Math.max(0, Math.round((stat.cutZeroLeft + delta) * 10) / 10);
   saveData();
   renderList();
 }
