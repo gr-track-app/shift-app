@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -80,7 +80,7 @@
   <main class="board-wrapper">
     <div class="board-header">
       <span id="boardTitle">1直 早出表</span>
-      <span class="board-sub">※枠内タップで担当変更可</span>
+      <span id="syncStatus" class="board-sub">☁️ 同期中...</span>
     </div>
     <div id="scheduleArea" class="board">
       <div class="empty-board">「📝 早出表作成」を押してください</div>
@@ -89,6 +89,7 @@
 </div>
 
 <script>
+const DB_BASE_URL = "https://firebaseio.com";
 const DAYS = ["月", "火", "水", "木", "金"];
 const POSITIONS_BY_SHIFT = {
   "1": ["A", "B", "C", "D"],
@@ -289,27 +290,49 @@ function createEmptyShiftData() {
   };
 }
 
-function loadAppData() {
+function setSyncStatus(text) {
+  const el = document.getElementById("syncStatus");
+  if (el) el.textContent = text;
+}
+
+async function loadAppData() {
+  setSyncStatus("☁️ 読込中...");
   try {
-    const possibleKeys = [STORAGE_KEY, "shiftData", "grTrackManager", "hayadeData"];
-    let raw = null;
-    for (const k of possibleKeys) {
-      const item = localStorage.getItem(k);
-      if (item) {
-        raw = JSON.parse(item);
-        break;
-      }
-    }
-    if (raw) {
-      const sourceShifts = raw.shifts ? raw.shifts : raw;
+    const res = await fetch(`${DB_BASE_URL}/shiftData.json`);
+    const cloudData = await res.json();
+    if (cloudData && cloudData.shifts) {
       ["1", "2"].forEach(s => {
-        if (sourceShifts[s]) {
-          appData.shifts[s] = { ...createEmptyShiftData(), ...sourceShifts[s] };
+        if (cloudData.shifts[s]) {
+          appData.shifts[s] = { ...createEmptyShiftData(), ...cloudData.shifts[s] };
         }
       });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+      setSyncStatus("☁️ 同期完了");
+    } else {
+      // クラウドが空なら端末内の既存データを読み込んでクラウドへ初回アップ
+      const localRaw = localStorage.getItem(STORAGE_KEY);
+      if (localRaw) {
+        const parsed = JSON.parse(localRaw);
+        const src = parsed.shifts || parsed;
+        ["1", "2"].forEach(s => {
+          if (src[s]) appData.shifts[s] = { ...createEmptyShiftData(), ...src[s] };
+        });
+        await saveAppData();
+      } else {
+        setSyncStatus("☁️ 同期完了");
+      }
     }
   } catch (e) {
-    console.error("データ読み込みエラー:", e);
+    console.error("クラウド読込エラー:", e);
+    const localRaw = localStorage.getItem(STORAGE_KEY);
+    if (localRaw) {
+      const parsed = JSON.parse(localRaw);
+      const src = parsed.shifts || parsed;
+      ["1", "2"].forEach(s => {
+        if (src[s]) appData.shifts[s] = { ...createEmptyShiftData(), ...src[s] };
+      });
+    }
+    setSyncStatus("⚠️ オフライン");
   }
   normalizeCurrentShiftData();
 }
@@ -338,20 +361,32 @@ function normalizeCurrentShiftData() {
   });
 }
 
-function saveAppData() {
+async function saveAppData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  setSyncStatus("☁️ 保存中...");
+  try {
+    await fetch(`${DB_BASE_URL}/shiftData.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(appData)
+    });
+    setSyncStatus("☁️ 同期完了");
+  } catch (e) {
+    console.error("クラウド保存エラー:", e);
+    setSyncStatus("⚠️ 保存失敗");
+  }
 }
 
-// 年休管理ページのデータと自動連動して残数を減算する関数
-function deductNenkyuFromHolidays(holidaysObj, membersList) {
+async function deductNenkyuFromHolidays(holidaysObj, membersList) {
   try {
     let nenkyuData = {};
-    const raw = localStorage.getItem(NENKYU_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      nenkyuData = (parsed["1"] || parsed["2"])
-        ? { ...(parsed["1"] || {}), ...(parsed["2"] || {}) }
-        : parsed;
+    const res = await fetch(`${DB_BASE_URL}/nenkyuData.json`);
+    const cloudN = await res.json();
+    if (cloudN) {
+      nenkyuData = cloudN;
+    } else {
+      const raw = localStorage.getItem(NENKYU_STORAGE_KEY);
+      if (raw) nenkyuData = JSON.parse(raw);
     }
 
     membersList.forEach(m => {
@@ -361,19 +396,24 @@ function deductNenkyuFromHolidays(holidaysObj, membersList) {
       });
       if (daysTaken > 0) {
         if (!nenkyuData[m]) nenkyuData[m] = { remain: 20, cutZeroLeft: 5 };
-        nenkyuData[m].remain = Math.max(0, nenkyuData[m].remain - daysTaken);
-        nenkyuData[m].cutZeroLeft = Math.max(0, nenkyuData[m].cutZeroLeft - daysTaken);
+        nenkyuData[m].remain = Math.max(0, Math.round((nenkyuData[m].remain - daysTaken) * 10) / 10);
+        nenkyuData[m].cutZeroLeft = Math.max(0, Math.round((nenkyuData[m].cutZeroLeft - daysTaken) * 10) / 10);
       }
     });
 
     localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
+    await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nenkyuData)
+    });
   } catch (e) {
     console.error("年休連動エラー:", e);
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadAppData();
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadAppData();
   setupEventListeners();
   refreshAllViews();
 });
@@ -582,7 +622,7 @@ function toggleHoliday(member, day, isChecked) {
   saveAppData();
 }
 
-function handleCreateSchedule() {
+async function handleCreateSchedule() {
   const sData = appData.shifts[currentShift];
   if (sData.members.length === 0) {
     alert("メンバーを登録してから早出表を作成してください。");
@@ -590,9 +630,7 @@ function handleCreateSchedule() {
   }
 
   sData.savedHolidays = JSON.parse(JSON.stringify(sData.holidays || {}));
-
-  // 年休チェック日数分を年休管理の残数・カット0から自動減算
-  deductNenkyuFromHolidays(sData.savedHolidays, sData.members);
+  await deductNenkyuFromHolidays(sData.savedHolidays, sData.members);
 
   const newSchedule = generateBestSchedule(sData, currentShift);
   sData.schedule = newSchedule;
@@ -625,7 +663,7 @@ function handleCreateSchedule() {
     sData.holidays[m] = {};
   });
 
-  saveAppData();
+  await saveAppData();
   closeAllPanels();
   renderHolidayArea();
   renderBoard();
