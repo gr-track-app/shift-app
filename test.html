@@ -115,6 +115,39 @@
 
     <div class="panel" id="panel-off">
       <div class="panel-head"><span class="panel-title">📅 年休・特休・教育 入力</span><button class="close-btn" onclick="closeAllPanels()">閉じる</button></div>
+      <div class="note">※タップで切替：<b>空欄</b> → <span style="color:#ff7875;font-weight:bold;">年</span>(年休減) → <span style="color:#5dade2;font-weight:bold;">特</span>(特休) → <span style="color:#f7dc6f;font-weight:bold;">教</span>(教育)</div>
+      <div class="table-wrap" id="offTableWrap"></div>
+    </div>
+
+    <div class="panel" id="panel-edu">
+      <div class="panel-head"><span class="panel-title">🎓 教育設定・対象者一覧</span><button class="close-btn" onclick="closeAllPanels()">閉じる</button></div>
+      <div class="note">※教育する曜日・ポジションを選んで反映できます</div>
+      <div class="edu-controls">
+        <select id="eduDaySelect"><option value="0">月曜日</option><option value="1">火曜日</option><option value="2">水曜日</option><option value="3">木曜日</option><option value="4">金曜日</option></select>
+        <select id="eduPosSelect"></select>
+      </div>
+      <button class="edu-apply-btn" onclick="applyEducationToBoard()">選択した曜日・ポジションに教育を反映</button>
+      <div id="eduListWrap"></div>
+    </div>
+
+    <div class="panel" id="panel-skill">
+      <div class="panel-head"><span class="panel-title">⚙ スキル管理</span><button class="close-btn" onclick="closeAllPanels()">閉じる</button></div>
+      <div class="note">※チェック済みのポジションのみ自動配置されます</div>
+      <div class="table-wrap" id="skillTableWrap"></div>
+    </div>
+
+    <div class="board-wrapper" id="captureArea">
+      <div class="board-header">
+        <div class="board-title" id="boardTitle">1直 早出表</div>
+        <div class="sync-badge" id="syncStatus">☁ 同期中...</div>
+      </div>
+      <div id="scheduleOutput"></div>
+    </div>
+
+    <button class="line-share-btn" id="shareLineBtn" onclick="shareScheduleImage()">
+      📤 画像にしてLINEで共有
+    </button>
+  </div>
   <script type="module">
     import { initializeApp } from "https://gstatic.com";
     import { getDatabase, ref, set, onValue } from "https://gstatic.com";
