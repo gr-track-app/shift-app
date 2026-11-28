@@ -77,10 +77,8 @@
     .off-tag.kyo { color: #f7dc6f; border: 1px solid rgba(241,196,15,0.4); }
     .empty-msg { text-align: center; color: var(--muted); padding: 28px 10px; font-size: 14px; }
 
-    /* LINE共有ボタン用スタイル */
     .line-share-btn { width: 100%; background: #06C755; color: #fff; border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 14px; box-shadow: 0 4px 12px rgba(6, 199, 85, 0.3); display: none; align-items: center; justify-content: center; gap: 8px; }
     .line-share-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    /* 画像キャプチャ時のみ余計な表示を消すスタイル */
     .capturing .sync-badge { display: none !important; }
     .capturing select { appearance: none; -webkit-appearance: none; }
   </style>
@@ -140,14 +138,14 @@
     function normalizeState(raw) {
       const base = { 1: { members: [], skills: {}, off: {}, schedule: null }, 2: { members: [], skills: {}, off: {}, schedule: null } };
       if (!raw) return base;
-      [1, 2].forEach(s => {
+      for (const s of ["1", "2"]) {
         if (raw[s]) {
           base[s].members = sortJa(Array.isArray(raw[s].members) ? [...raw[s].members] : []);
           base[s].skills = raw[s].skills || {};
           base[s].off = raw[s].off || {};
           base[s].schedule = Array.isArray(raw[s].schedule) ? raw[s].schedule : null;
         }
-      });
+      }
       return base;
     }
 
@@ -266,9 +264,9 @@
       const pos = document.getElementById("eduPosSelect").value;
       const trainees = s.members.filter(m => (s.off[m] || [])[dayIdx] === "教");
       if (!trainees.length) return alert(`${DAYS[dayIdx]}に「教」設定のメンバーがいません`);
-      s.schedule[dayIdx][pos] = trainees[0];
+      s.schedule[dayIdx][pos] = trainees.at(0);
       saveState();
-      alert(`${DAYS[dayIdx]}のポジション${pos}に ${trainees[0]} を反映しました`);
+      alert(`${DAYS[dayIdx]}のポジション${pos}に ${trainees.at(0)} を反映しました`);
     };
 
     window.toggleSkill = (name, pos) => {
@@ -361,7 +359,7 @@
             const scoreB = totalCount[b] * 100 + posCount[b][pos] * 400 + (prevDayAssigned.has(b) ? 15 : 0) + Math.random();
             return scoreA - scoreB;
           });
-          const chosen = candidates[0];
+          const chosen = candidates.at(0);
           dayResult[pos] = chosen;
           usedToday.add(chosen);
           totalCount[chosen]++;
