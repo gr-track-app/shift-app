@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=16">
   <style>
     .status-chip-btn {
       min-width: 34px;
@@ -290,6 +290,74 @@ function generateBestSchedule(shiftData, shiftKey) {
   }
   return bestSchedule;
 }
+function isUnlearnedForPosition(member, pos, shiftData) {
+  if (!member || !pos) return false;
+  return !shiftData.skills?.[member]?.[pos];
+}
+
+function getAbsenceBadgeInfo(type) {
+  if (type === "nenkyu") return { label: "年", cls: "tag-nenkyu" };
+  if (type === "tokkyu") return { label: "特", cls: "tag-tokkyu" };
+  if (type === "kyouiku") return { label: "教", cls: "tag-kyouiku" };
+  return null;
+}
+
+function renderScheduleBoard(schedule, shiftData, shiftKey, dailyEduMap = {}, savedHolidays = {}) {
+  const scheduleArea = document.getElementById("scheduleArea");
+  if (!schedule || Object.keys(schedule).length === 0) {
+    scheduleArea.innerHTML = `<div class="empty-board">「📝 早出表作成」を押してください</div>`;
+    return;
+  }
+
+  const positions = POSITIONS_BY_SHIFT[shiftKey];
+  const leftPositions = positions.filter(p => p === "A" || p === "B");
+  const rightPositions = positions.filter(p => p === "C" || p === "D");
+
+  let html = "";
+  for (const day of DAYS) {
+    const offList = [];
+    shiftData.members.forEach(m => {
+      const type = getAbsenceType(savedHolidays?.[m]?.[day]);
+      if (type) {
+        offList.push({ name: m, info: getAbsenceBadgeInfo(type) });
+      }
+    });
+
+    html += `<div class="day-block"><div class="day-label">${day}曜日</div><div class="pos-grid">`;
+    html += `<div class="pos-col">`;
+    for (const pos of leftPositions) html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, dailyEduMap);
+    html += `</div><div class="pos-col">`;
+    for (const pos of rightPositions) html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, dailyEduMap);
+    html += `</div></div>`;
+    if (offList.length > 0) {
+      html += `<div class="day-holidays"><span>不在:</span>${offList.map(item => `<span class="holiday-tag ${item.info.cls}">${item.name}(${item.info.label})</span>`).join("")}</div>`;
+    }
+    html += `</div>`;
+  }
+  scheduleArea.innerHTML = html;
+}
+
+function buildPositionCellHTML(day, pos, assignedPerson, shiftData, dailyEduMap) {
+  const showOrange = isUnlearnedForPosition(assignedPerson, pos, shiftData);
+  const trainer = assignedPerson ? dailyEduMap[`${day}_${pos}`] : "";
+  let optionsHtml = `<option value="">-- 未定 --</option>`;
+  shiftData.members.forEach(m => {
+    const selected = m === assignedPerson ? "selected" : "";
+    optionsHtml += `<option value="${m}" ${selected}>${m}</option>`;
+  });
+  return `
+    <div class="pos-cell">
+      <span class="pos-tag">${pos}</span>
+      <div class="cell-content">
+        <div class="person-select-row">
+          ${showOrange ? `<span>🟠</span>` : ""}
+          <select class="board-select" data-day="${day}" data-pos="${pos}">${optionsHtml}</select>
+        </div>
+        ${trainer ? `<div class="trainer-badge">👨‍🏫 教育: ${trainer}</div>` : ""}
+      </div>
+    </div>`;
+}
+
 async function shareScheduleAsImage() {
   const sData = appData.shifts[currentShift];
   if (!sData.schedule) {
@@ -363,7 +431,6 @@ async function shareScheduleAsImage() {
       ctx.fillText(labelText, boxX + 30, boxY + 19);
     });
 
-    // 不在タグ（年=赤・特=青・教=黄の色分け表示）
     const offItems = [];
     sData.members.forEach(m => {
       const type = getAbsenceType(sData.savedHolidays?.[m]?.[day]);
@@ -564,7 +631,6 @@ async function deductNenkyuFromHolidays(holidaysObj, membersList) {
     console.error("年休連動エラー:", e);
   }
 }
-
 document.addEventListener("DOMContentLoaded", async () => {
   await loadAppData();
   setupEventListeners();
@@ -647,6 +713,7 @@ function refreshAllViews() {
   renderHolidayArea();
   renderBoard();
 }
+
 function addMember() {
   const input = document.getElementById("memberInput");
   const name = input.value.trim();
@@ -739,7 +806,6 @@ function toggleSkill(member, pos, isChecked) {
   saveAppData();
   renderBoard();
 }
-
 function renderHolidayArea() {
   const container = document.getElementById("holidayArea");
   const sData = appData.shifts[currentShift];
