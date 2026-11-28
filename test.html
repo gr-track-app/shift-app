@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>GR TRACK MANAGER (TEST)</title>
+  <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="style.css?v=14">
   <style>
     .status-chip-btn {
       min-width: 34px;
@@ -138,7 +138,7 @@
       <span id="boardTitle">1直 早出表</span>
       <div style="display:flex; align-items:center; gap:6px;">
         <button type="button" id="shareImgBtn" class="share-img-btn">📸 画像共有</button>
-        <span id="syncStatus" class="board-sub">🧪 読込中...</span>
+        <span id="syncStatus" class="board-sub">☁️ 同期中...</span>
       </div>
     </div>
     <div id="scheduleArea" class="board">
@@ -358,7 +358,6 @@ function buildPositionCellHTML(day, pos, assignedPerson, shiftData, dailyEduMap)
     </div>`;
 }
 
-// 早出表だけを綺麗な画像にして共有シート(LINE等)を開く
 async function shareScheduleAsImage() {
   const sData = appData.shifts[currentShift];
   if (!sData.schedule) {
@@ -379,11 +378,9 @@ async function shareScheduleAsImage() {
   const ctx = canvas.getContext("2d");
   ctx.scale(scale, scale);
 
-  // 背景
   ctx.fillStyle = "#09090b";
   ctx.fillRect(0, 0, width, height);
 
-  // ヘッダー帯
   ctx.fillStyle = "#16161a";
   ctx.fillRect(10, 10, width - 20, 38);
   ctx.fillStyle = "#e60012";
@@ -403,12 +400,10 @@ async function shareScheduleAsImage() {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 曜日ラベル
     ctx.fillStyle = "#e60012";
     ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.fillText(`${day}曜日`, 20, y + 20);
 
-    // ポジション枠 (2列)
     positions.forEach((pos, idx) => {
       const col = idx < 2 ? 0 : 1;
       const row = idx % 2;
@@ -422,7 +417,6 @@ async function shareScheduleAsImage() {
       ctx.roundRect(boxX, boxY, 184, 28, 6);
       ctx.fill();
 
-      // 赤バッジ
       ctx.fillStyle = "#e60012";
       ctx.beginPath();
       ctx.roundRect(boxX + 4, boxY + 4, 20, 20, 4);
@@ -431,25 +425,37 @@ async function shareScheduleAsImage() {
       ctx.font = "bold 12px sans-serif";
       ctx.fillText(pos, boxX + 10, boxY + 18);
 
-      // 名前
       ctx.fillStyle = "#111111";
       ctx.font = "bold 14px -apple-system, BlinkMacSystemFont, sans-serif";
       const labelText = trainer ? `${person}(教:${trainer})` : person;
       ctx.fillText(labelText, boxX + 30, boxY + 19);
     });
 
-    // 不在タグ
+    // 不在タグ（年=赤・特=青・教=黄の色分け表示）
     const offItems = [];
     sData.members.forEach(m => {
       const type = getAbsenceType(sData.savedHolidays?.[m]?.[day]);
-      if (type === "nenkyu") offItems.push(`${m}(年)`);
-      else if (type === "tokkyu") offItems.push(`${m}(特)`);
-      else if (type === "kyouiku") offItems.push(`${m}(教)`);
+      if (type === "nenkyu") offItems.push({ text: `${m}(年)`, color: "#ff6b76" });
+      else if (type === "tokkyu") offItems.push({ text: `${m}(特)`, color: "#60a5fa" });
+      else if (type === "kyouiku") offItems.push({ text: `${m}(教)`, color: "#fbbf24" });
     });
     if (offItems.length > 0) {
+      ctx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif";
+      let curX = 95;
       ctx.fillStyle = "#aaaaaa";
-      ctx.font = "bold 11px sans-serif";
-      ctx.fillText(`不在: ${offItems.join(" / ")}`, 95, y + 20);
+      ctx.fillText("不在: ", curX, y + 20);
+      curX += ctx.measureText("不在: ").width;
+
+      offItems.forEach((item, i) => {
+        ctx.fillStyle = item.color;
+        ctx.fillText(item.text, curX, y + 20);
+        curX += ctx.measureText(item.text).width;
+        if (i < offItems.length - 1) {
+          ctx.fillStyle = "#666666";
+          ctx.fillText(" / ", curX, y + 20);
+          curX += ctx.measureText(" / ").width;
+        }
+      });
     }
 
     y += dayH;
@@ -473,6 +479,8 @@ async function shareScheduleAsImage() {
     }
   }, "image/png");
 }
+const STORAGE_KEY = "gr_track_manager_data_v1";
+const NENKYU_STORAGE_KEY = "gr_nenkyu_cut0_data_v1";
 let currentShift = "1";
 let appData = {
   shifts: {
@@ -501,7 +509,7 @@ function setSyncStatus(text) {
 }
 
 async function loadAppData() {
-  setSyncStatus("🧪 読込中...");
+  setSyncStatus("☁️ 読込中...");
   try {
     const res = await fetch(`${DB_BASE_URL}/shiftData.json?t=${Date.now()}`);
     const cloudData = await res.json();
@@ -511,11 +519,32 @@ async function loadAppData() {
           appData.shifts[s] = { ...createEmptyShiftData(), ...cloudData.shifts[s] };
         }
       });
-      setSyncStatus("🧪 テスト保護中");
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+      setSyncStatus("☁️ 同期完了");
+    } else {
+      const localRaw = localStorage.getItem(STORAGE_KEY);
+      if (localRaw) {
+        const parsed = JSON.parse(localRaw);
+        const src = parsed.shifts || parsed;
+        ["1", "2"].forEach(s => {
+          if (src[s]) appData.shifts[s] = { ...createEmptyShiftData(), ...src[s] };
+        });
+        await saveAppData();
+      } else {
+        setSyncStatus("☁️ 同期完了");
+      }
     }
   } catch (e) {
-    console.error(e);
-    setSyncStatus("⚠️ 読込失敗");
+    console.error("クラウド読込エラー:", e);
+    const localRaw = localStorage.getItem(STORAGE_KEY);
+    if (localRaw) {
+      const parsed = JSON.parse(localRaw);
+      const src = parsed.shifts || parsed;
+      ["1", "2"].forEach(s => {
+        if (src[s]) appData.shifts[s] = { ...createEmptyShiftData(), ...src[s] };
+      });
+    }
+    setSyncStatus("⚠️ オフライン");
   }
   normalizeCurrentShiftData();
 }
@@ -545,8 +574,61 @@ function normalizeCurrentShiftData() {
   });
 }
 
-function saveAppData() {
-  setSyncStatus("🧪 テスト更新済");
+async function saveAppData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  setSyncStatus("☁️ 保存中...");
+  try {
+    await fetch(`${DB_BASE_URL}/shiftData.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(appData)
+    });
+    setSyncStatus("☁️ 同期完了");
+  } catch (e) {
+    console.error("クラウド保存エラー:", e);
+    setSyncStatus("⚠️ 保存失敗");
+  }
+}
+
+async function deductNenkyuFromHolidays(holidaysObj, membersList) {
+  try {
+    let nenkyuData = {};
+    const res = await fetch(`${DB_BASE_URL}/nenkyuData.json?t=${Date.now()}`);
+    const cloudN = await res.json();
+    if (cloudN) {
+      nenkyuData = cloudN;
+    } else {
+      const raw = localStorage.getItem(NENKYU_STORAGE_KEY);
+      if (raw) nenkyuData = JSON.parse(raw);
+    }
+
+    let hasChanges = false;
+    membersList.forEach(m => {
+      let daysTaken = 0;
+      DAYS.forEach(d => {
+        if (getAbsenceType(holidaysObj?.[m]?.[d]) === "nenkyu") {
+          daysTaken++;
+        }
+      });
+      if (daysTaken > 0) {
+        hasChanges = true;
+        if (!nenkyuData[m]) nenkyuData[m] = { remain: 20, cutZeroLeft: 5 };
+        nenkyuData[m].remain = Math.max(0, Math.round((nenkyuData[m].remain - daysTaken) * 10) / 10);
+        nenkyuData[m].cutZeroLeft = Math.max(0, Math.round((nenkyuData[m].cutZeroLeft - daysTaken) * 10) / 10);
+      }
+    });
+
+    if (hasChanges) {
+      localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
+      await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nenkyuData)
+      });
+    }
+  } catch (e) {
+    console.error("年休連動エラー:", e);
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -631,7 +713,6 @@ function refreshAllViews() {
   renderHolidayArea();
   renderBoard();
 }
-
 function addMember() {
   const input = document.getElementById("memberInput");
   const name = input.value.trim();
@@ -724,6 +805,7 @@ function toggleSkill(member, pos, isChecked) {
   saveAppData();
   renderBoard();
 }
+
 function renderHolidayArea() {
   const container = document.getElementById("holidayArea");
   const sData = appData.shifts[currentShift];
@@ -773,7 +855,7 @@ function cycleAbsence(member, day) {
   renderHolidayArea();
 }
 
-function handleCreateSchedule() {
+async function handleCreateSchedule() {
   const sData = appData.shifts[currentShift];
   if (sData.members.length === 0) {
     alert("メンバーを登録してから早出表を作成してください。");
@@ -781,6 +863,7 @@ function handleCreateSchedule() {
   }
 
   sData.savedHolidays = JSON.parse(JSON.stringify(sData.holidays || {}));
+  await deductNenkyuFromHolidays(sData.savedHolidays, sData.members);
 
   const newSchedule = generateBestSchedule(sData, currentShift);
   sData.schedule = newSchedule;
@@ -813,7 +896,7 @@ function handleCreateSchedule() {
     sData.holidays[m] = {};
   });
 
-  saveAppData();
+  await saveAppData();
   closeAllPanels();
   renderHolidayArea();
   renderBoard();
