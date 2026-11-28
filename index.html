@@ -4,7 +4,50 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=12">
+  <style>
+    .status-chip-btn {
+      min-width: 34px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #1c1c21;
+      color: #888;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .status-chip-btn.type-nenkyu {
+      background: #3f0d12;
+      color: #ff6b76;
+      border-color: #e60012;
+    }
+    .status-chip-btn.type-tokkyu {
+      background: #102a4c;
+      color: #60a5fa;
+      border-color: #3b82f6;
+    }
+    .status-chip-btn.type-kyouiku {
+      background: #3b2608;
+      color: #fbbf24;
+      border-color: #f59e0b;
+    }
+    .holiday-tag.tag-nenkyu {
+      background: #3f0d12;
+      color: #ff6b76;
+      border: 1px solid #e60012;
+    }
+    .holiday-tag.tag-tokkyu {
+      background: #102a4c;
+      color: #60a5fa;
+      border: 1px solid #3b82f6;
+    }
+    .holiday-tag.tag-kyouiku {
+      background: #3b2608;
+      color: #fbbf24;
+      border: 1px solid #f59e0b;
+    }
+  </style>
 </head>
 <body>
 
@@ -26,7 +69,7 @@
     <div class="menu-grid">
       <div class="menu-row">
         <button type="button" class="nav-btn" data-target="panel-member">👥 メンバー</button>
-        <button type="button" class="nav-btn" data-target="panel-holiday">📅 年休</button>
+        <button type="button" class="nav-btn" data-target="panel-holiday">📅 年休・不在</button>
       </div>
       <div class="menu-row">
         <button type="button" class="nav-btn" data-target="panel-education">🎓 教育</button>
@@ -37,7 +80,6 @@
       </div>
     </div>
   </header>
-
   <section id="panel-member" class="panel hidden">
     <div class="panel-header">
       <h2>👥 メンバー管理</h2>
@@ -52,10 +94,10 @@
 
   <section id="panel-holiday" class="panel hidden">
     <div class="panel-header">
-      <h2>📅 年休入力</h2>
+      <h2>📅 年休・特休・教育 入力</h2>
       <button type="button" class="close-panel-btn">閉じる</button>
     </div>
-    <p class="panel-note">※チェックした日は自動配置から除外＆年休管理の残数も自動減算されます</p>
+    <p class="panel-note">※タップで切替：<b>空欄</b> → <span style="color:#ff6b76;"><b>年</b>(年休減)</span> → <span style="color:#60a5fa;"><b>特</b>(特休)</span> → <span style="color:#fbbf24;"><b>教</b>(教育)</span></p>
     <div id="holidayArea" class="list-area"></div>
   </section>
 
@@ -96,6 +138,13 @@ const POSITIONS_BY_SHIFT = {
   "2": ["A", "B", "C"]
 };
 
+function getAbsenceType(val) {
+  if (val === true || val === "nenkyu") return "nenkyu";
+  if (val === "tokkyu") return "tokkyu";
+  if (val === "kyouiku") return "kyouiku";
+  return "";
+}
+
 function shuffleArray(array) {
   const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -104,8 +153,7 @@ function shuffleArray(array) {
   }
   return arr;
 }
-
-function generateCandidateSchedule(shiftData, positions) {
+  function generateCandidateSchedule(shiftData, positions) {
   const schedule = {};
   const tempCount = { ...(shiftData.count || {}) };
   const tempPosCount = {};
@@ -130,19 +178,19 @@ function generateCandidateSchedule(shiftData, positions) {
 
     const sortedPositions = [...positions].sort((a, b) => {
       const countA = shiftData.members.filter(m =>
-        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[a]
+        !getAbsenceType(shiftData.holidays?.[m]?.[day]) && shiftData.skills?.[m]?.[a]
       ).length;
       const countB = shiftData.members.filter(m =>
-        !shiftData.holidays?.[m]?.[day] && shiftData.skills?.[m]?.[b]
+        !getAbsenceType(shiftData.holidays?.[m]?.[day]) && shiftData.skills?.[m]?.[b]
       ).length;
       return countA - countB;
     });
 
     for (const pos of sortedPositions) {
       const candidates = shiftData.members.filter(m => {
-        const isHoliday = Boolean(shiftData.holidays?.[m]?.[day]);
+        const isAbsent = Boolean(getAbsenceType(shiftData.holidays?.[m]?.[day]));
         const hasSkill = Boolean(shiftData.skills?.[m]?.[pos]);
-        return !isHoliday && !assignedToday.has(m) && hasSkill;
+        return !isAbsent && !assignedToday.has(m) && hasSkill;
       });
 
       if (candidates.length === 0) {
@@ -225,9 +273,16 @@ function generateBestSchedule(shiftData, shiftKey) {
   }
   return bestSchedule;
 }
-function isUnlearnedForPosition(member, pos, shiftData) {
+  function isUnlearnedForPosition(member, pos, shiftData) {
   if (!member || !pos) return false;
   return !shiftData.skills?.[member]?.[pos];
+}
+
+function getAbsenceBadgeInfo(type) {
+  if (type === "nenkyu") return { label: "年", cls: "tag-nenkyu" };
+  if (type === "tokkyu") return { label: "特", cls: "tag-tokkyu" };
+  if (type === "kyouiku") return { label: "教", cls: "tag-kyouiku" };
+  return null;
 }
 
 function renderScheduleBoard(schedule, shiftData, shiftKey, dailyEduMap = {}, savedHolidays = {}) {
@@ -243,15 +298,22 @@ function renderScheduleBoard(schedule, shiftData, shiftKey, dailyEduMap = {}, sa
 
   let html = "";
   for (const day of DAYS) {
-    const offMembers = shiftData.members.filter(m => savedHolidays?.[m]?.[day]);
+    const offList = [];
+    shiftData.members.forEach(m => {
+      const type = getAbsenceType(savedHolidays?.[m]?.[day]);
+      if (type) {
+        offList.push({ name: m, info: getAbsenceBadgeInfo(type) });
+      }
+    });
+
     html += `<div class="day-block"><div class="day-label">${day}曜日</div><div class="pos-grid">`;
     html += `<div class="pos-col">`;
     for (const pos of leftPositions) html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, dailyEduMap);
     html += `</div><div class="pos-col">`;
     for (const pos of rightPositions) html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, dailyEduMap);
     html += `</div></div>`;
-    if (offMembers.length > 0) {
-      html += `<div class="day-holidays"><span>休み:</span>${offMembers.map(m => `<span class="holiday-tag">${m}</span>`).join("")}</div>`;
+    if (offList.length > 0) {
+      html += `<div class="day-holidays"><span>不在:</span>${offList.map(item => `<span class="holiday-tag ${item.info.cls}">${item.name}(${item.info.label})</span>`).join("")}</div>`;
     }
     html += `</div>`;
   }
@@ -402,30 +464,35 @@ async function deductNenkyuFromHolidays(holidaysObj, membersList) {
       if (raw) nenkyuData = JSON.parse(raw);
     }
 
+    let hasChanges = false;
     membersList.forEach(m => {
       let daysTaken = 0;
       DAYS.forEach(d => {
-        if (holidaysObj?.[m]?.[d]) daysTaken++;
+        if (getAbsenceType(holidaysObj?.[m]?.[d]) === "nenkyu") {
+          daysTaken++;
+        }
       });
       if (daysTaken > 0) {
+        hasChanges = true;
         if (!nenkyuData[m]) nenkyuData[m] = { remain: 20, cutZeroLeft: 5 };
         nenkyuData[m].remain = Math.max(0, Math.round((nenkyuData[m].remain - daysTaken) * 10) / 10);
         nenkyuData[m].cutZeroLeft = Math.max(0, Math.round((nenkyuData[m].cutZeroLeft - daysTaken) * 10) / 10);
       }
     });
 
-    localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
-    await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nenkyuData)
-    });
+    if (hasChanges) {
+      localStorage.setItem(NENKYU_STORAGE_KEY, JSON.stringify(nenkyuData));
+      await fetch(`${DB_BASE_URL}/nenkyuData.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nenkyuData)
+      });
+    }
   } catch (e) {
     console.error("年休連動エラー:", e);
   }
 }
-
-document.addEventListener("DOMContentLoaded", async () => {
+  document.addEventListener("DOMContentLoaded", async () => {
   await loadAppData();
   setupEventListeners();
   refreshAllViews();
@@ -506,6 +573,7 @@ function refreshAllViews() {
   renderHolidayArea();
   renderBoard();
 }
+
 function addMember() {
   const input = document.getElementById("memberInput");
   const name = input.value.trim();
@@ -598,8 +666,7 @@ function toggleSkill(member, pos, isChecked) {
   saveAppData();
   renderBoard();
 }
-
-function renderHolidayArea() {
+  function renderHolidayArea() {
   const container = document.getElementById("holidayArea");
   const sData = appData.shifts[currentShift];
 
@@ -609,30 +676,43 @@ function renderHolidayArea() {
   }
 
   container.innerHTML = sData.members.map(m => {
-    const checks = DAYS.map(day => {
-      const checked = sData.holidays[m]?.[day] ? "checked" : "";
+    const buttons = DAYS.map(day => {
+      const type = getAbsenceType(sData.holidays[m]?.[day]);
+      let label = day;
+      let cls = "";
+      if (type === "nenkyu") { label = "年"; cls = "type-nenkyu"; }
+      else if (type === "tokkyu") { label = "特"; cls = "type-tokkyu"; }
+      else if (type === "kyouiku") { label = "教"; cls = "type-kyouiku"; }
+
       return `
-        <label class="check-label">
-          <input type="checkbox" ${checked} onchange="toggleHoliday('${m}', '${day}', this.checked)">
-          ${day}
-        </label>
+        <button type="button" class="status-chip-btn ${cls}" onclick="cycleAbsence('${m}', '${day}')">
+          ${label}
+        </button>
       `;
     }).join("");
 
     return `
       <div class="list-item">
         <span class="item-name">${m}</span>
-        <div class="check-group">${checks}</div>
+        <div class="check-group">${buttons}</div>
       </div>
     `;
   }).join("");
 }
 
-function toggleHoliday(member, day, isChecked) {
+function cycleAbsence(member, day) {
   const sData = appData.shifts[currentShift];
   if (!sData.holidays[member]) sData.holidays[member] = {};
-  sData.holidays[member][day] = isChecked;
+  const current = getAbsenceType(sData.holidays[member][day]);
+  const order = ["", "nenkyu", "tokkyu", "kyouiku"];
+  const next = order[(order.indexOf(current) + 1) % order.length];
+  if (next) {
+    sData.holidays[member][day] = next;
+  } else {
+    delete sData.holidays[member][day];
+  }
   saveAppData();
+  renderHolidayArea();
 }
 
 async function handleCreateSchedule() {
