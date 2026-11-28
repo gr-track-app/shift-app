@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>GR TRACK MANAGER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=14">
   <style>
     .status-chip-btn {
       min-width: 34px;
@@ -46,6 +46,20 @@
       background: #3b2608;
       color: #fbbf24;
       border: 1px solid #f59e0b;
+    }
+    .share-img-btn {
+      background: #06c755;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .share-img-btn:active {
+      opacity: 0.8;
     }
   </style>
 </head>
@@ -122,7 +136,10 @@
   <main class="board-wrapper">
     <div class="board-header">
       <span id="boardTitle">1直 早出表</span>
-      <span id="syncStatus" class="board-sub">☁️ 同期中...</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button type="button" id="shareImgBtn" class="share-img-btn">📸 画像共有</button>
+        <span id="syncStatus" class="board-sub">☁️ 同期中...</span>
+      </div>
     </div>
     <div id="scheduleArea" class="board">
       <div class="empty-board">「📝 早出表作成」を押してください</div>
@@ -153,7 +170,7 @@ function shuffleArray(array) {
   }
   return arr;
 }
-  function generateCandidateSchedule(shiftData, positions) {
+function generateCandidateSchedule(shiftData, positions) {
   const schedule = {};
   const tempCount = { ...(shiftData.count || {}) };
   const tempPosCount = {};
@@ -273,74 +290,129 @@ function generateBestSchedule(shiftData, shiftKey) {
   }
   return bestSchedule;
 }
-  function isUnlearnedForPosition(member, pos, shiftData) {
-  if (!member || !pos) return false;
-  return !shiftData.skills?.[member]?.[pos];
-}
-
-function getAbsenceBadgeInfo(type) {
-  if (type === "nenkyu") return { label: "年", cls: "tag-nenkyu" };
-  if (type === "tokkyu") return { label: "特", cls: "tag-tokkyu" };
-  if (type === "kyouiku") return { label: "教", cls: "tag-kyouiku" };
-  return null;
-}
-
-function renderScheduleBoard(schedule, shiftData, shiftKey, dailyEduMap = {}, savedHolidays = {}) {
-  const scheduleArea = document.getElementById("scheduleArea");
-  if (!schedule || Object.keys(schedule).length === 0) {
-    scheduleArea.innerHTML = `<div class="empty-board">「📝 早出表作成」を押してください</div>`;
+async function shareScheduleAsImage() {
+  const sData = appData.shifts[currentShift];
+  if (!sData.schedule) {
+    alert("先に「📝 早出表作成」を押してから共有してください。");
     return;
   }
 
-  const positions = POSITIONS_BY_SHIFT[shiftKey];
-  const leftPositions = positions.filter(p => p === "A" || p === "B");
-  const rightPositions = positions.filter(p => p === "C" || p === "D");
+  const positions = POSITIONS_BY_SHIFT[currentShift];
+  const scale = 2;
+  const width = 420;
+  const headerH = 54;
+  const dayH = positions.length > 3 ? 126 : 102;
+  const height = headerH + DAYS.length * dayH + 16;
 
-  let html = "";
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = "#09090b";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#16161a";
+  ctx.fillRect(10, 10, width - 20, 38);
+  ctx.fillStyle = "#e60012";
+  ctx.fillRect(10, 10, 5, 38);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 17px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(`GR ${currentShift}直 早出表`, 24, 35);
+
+  let y = headerH + 6;
   for (const day of DAYS) {
-    const offList = [];
-    shiftData.members.forEach(m => {
-      const type = getAbsenceType(savedHolidays?.[m]?.[day]);
-      if (type) {
-        offList.push({ name: m, info: getAbsenceBadgeInfo(type) });
-      }
+    ctx.fillStyle = "#16161a";
+    ctx.beginPath();
+    ctx.roundRect(10, y, width - 20, dayH - 8, 8);
+    ctx.fill();
+    ctx.strokeStyle = "#2c2c32";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "#e60012";
+    ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${day}曜日`, 20, y + 20);
+
+    positions.forEach((pos, idx) => {
+      const col = idx < 2 ? 0 : 1;
+      const row = idx % 2;
+      const boxX = 20 + col * 192;
+      const boxY = y + 28 + row * 34;
+      const person = sData.schedule[day]?.[pos] || "-- 未定 --";
+      const trainer = person ? (sData.dailyEducation?.[`${day}_${pos}`] || "") : "";
+
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, 184, 28, 6);
+      ctx.fill();
+
+      ctx.fillStyle = "#e60012";
+      ctx.beginPath();
+      ctx.roundRect(boxX + 4, boxY + 4, 20, 20, 4);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillText(pos, boxX + 10, boxY + 18);
+
+      ctx.fillStyle = "#111111";
+      ctx.font = "bold 14px -apple-system, BlinkMacSystemFont, sans-serif";
+      const labelText = trainer ? `${person}(教:${trainer})` : person;
+      ctx.fillText(labelText, boxX + 30, boxY + 19);
     });
 
-    html += `<div class="day-block"><div class="day-label">${day}曜日</div><div class="pos-grid">`;
-    html += `<div class="pos-col">`;
-    for (const pos of leftPositions) html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, dailyEduMap);
-    html += `</div><div class="pos-col">`;
-    for (const pos of rightPositions) html += buildPositionCellHTML(day, pos, schedule[day]?.[pos] || "", shiftData, dailyEduMap);
-    html += `</div></div>`;
-    if (offList.length > 0) {
-      html += `<div class="day-holidays"><span>不在:</span>${offList.map(item => `<span class="holiday-tag ${item.info.cls}">${item.name}(${item.info.label})</span>`).join("")}</div>`;
+    // 不在タグ（年=赤・特=青・教=黄の色分け表示）
+    const offItems = [];
+    sData.members.forEach(m => {
+      const type = getAbsenceType(sData.savedHolidays?.[m]?.[day]);
+      if (type === "nenkyu") offItems.push({ text: `${m}(年)`, color: "#ff6b76" });
+      else if (type === "tokkyu") offItems.push({ text: `${m}(特)`, color: "#60a5fa" });
+      else if (type === "kyouiku") offItems.push({ text: `${m}(教)`, color: "#fbbf24" });
+    });
+    if (offItems.length > 0) {
+      ctx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif";
+      let curX = 95;
+      ctx.fillStyle = "#aaaaaa";
+      ctx.fillText("不在: ", curX, y + 20);
+      curX += ctx.measureText("不在: ").width;
+
+      offItems.forEach((item, i) => {
+        ctx.fillStyle = item.color;
+        ctx.fillText(item.text, curX, y + 20);
+        curX += ctx.measureText(item.text).width;
+        if (i < offItems.length - 1) {
+          ctx.fillStyle = "#666666";
+          ctx.fillText(" / ", curX, y + 20);
+          curX += ctx.measureText(" / ").width;
+        }
+      });
     }
-    html += `</div>`;
+
+    y += dayH;
   }
-  scheduleArea.innerHTML = html;
-}
 
-function buildPositionCellHTML(day, pos, assignedPerson, shiftData, dailyEduMap) {
-  const showOrange = isUnlearnedForPosition(assignedPerson, pos, shiftData);
-  const trainer = assignedPerson ? dailyEduMap[`${day}_${pos}`] : "";
-  let optionsHtml = `<option value="">-- 未定 --</option>`;
-  shiftData.members.forEach(m => {
-    const selected = m === assignedPerson ? "selected" : "";
-    optionsHtml += `<option value="${m}" ${selected}>${m}</option>`;
-  });
-  return `
-    <div class="pos-cell">
-      <span class="pos-tag">${pos}</span>
-      <div class="cell-content">
-        <div class="person-select-row">
-          ${showOrange ? `<span>🟠</span>` : ""}
-          <select class="board-select" data-day="${day}" data-pos="${pos}">${optionsHtml}</select>
-        </div>
-        ${trainer ? `<div class="trainer-badge">👨‍🏫 教育: ${trainer}</div>` : ""}
-      </div>
-    </div>`;
+  canvas.toBlob(async blob => {
+    if (!blob) return;
+    const file = new File([blob], `shift_${currentShift}.png`, { type: "image/png" });
+    const msgText = `${currentShift}直早出表　確認お願いします。`;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `${currentShift}直 早出表`,
+          text: msgText
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") alert("共有に失敗しました。");
+      }
+    } else {
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    }
+  }, "image/png");
 }
-
 const STORAGE_KEY = "gr_track_manager_data_v1";
 const NENKYU_STORAGE_KEY = "gr_nenkyu_cut0_data_v1";
 let currentShift = "1";
@@ -492,7 +564,8 @@ async function deductNenkyuFromHolidays(holidaysObj, membersList) {
     console.error("年休連動エラー:", e);
   }
 }
-  document.addEventListener("DOMContentLoaded", async () => {
+
+document.addEventListener("DOMContentLoaded", async () => {
   await loadAppData();
   setupEventListeners();
   refreshAllViews();
@@ -538,6 +611,7 @@ function setupEventListeners() {
   });
 
   document.getElementById("createButton").addEventListener("click", handleCreateSchedule);
+  document.getElementById("shareImgBtn").addEventListener("click", shareScheduleAsImage);
 
   document.getElementById("scheduleArea").addEventListener("change", e => {
     if (e.target.classList.contains("board-select")) {
@@ -573,7 +647,6 @@ function refreshAllViews() {
   renderHolidayArea();
   renderBoard();
 }
-
 function addMember() {
   const input = document.getElementById("memberInput");
   const name = input.value.trim();
@@ -666,7 +739,8 @@ function toggleSkill(member, pos, isChecked) {
   saveAppData();
   renderBoard();
 }
-  function renderHolidayArea() {
+
+function renderHolidayArea() {
   const container = document.getElementById("holidayArea");
   const sData = appData.shifts[currentShift];
 
